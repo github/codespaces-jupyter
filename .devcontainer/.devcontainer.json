@@ -1,0 +1,10 @@
+{
+    "extensions": [
+        "gh-gh-dogfooding.codespaces-zero"
+    ],
+    "codespaces": {
+      "zero": {
+        "defaultFile": "src/Linear.ipynb"
+      }
+    }
+  }
