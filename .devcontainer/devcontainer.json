@@ -1,6 +1,5 @@
 {
     "extensions": [
-        "gh-gh-dogfooding.codespaces-zero",
         "ms-toolsai.jupyter",
         "ms-python.python"
     ],
