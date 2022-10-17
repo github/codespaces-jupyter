@@ -1,11 +1,11 @@
 {
-    "extensions": [
-        "ms-toolsai.jupyter",
-        "ms-python.python"
-    ],
-    "codespaces": {
-      "zero": {
-        "defaultFile": "src/Linear.ipynb"
-      }
-    }
-  }
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-toolsai.jupyter",
+				"ms-python.python"
+			]
+		}
+	},
+	"postCreateCommand": ""
+}
