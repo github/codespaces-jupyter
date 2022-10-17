@@ -6,5 +6,6 @@
 				"ms-python.python"
 			]
 		}
-	}
+	},
+	"postCreateCommand": ""
 }
