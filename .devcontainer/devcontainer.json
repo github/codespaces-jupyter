@@ -3,6 +3,9 @@
 		"cpus": 4
 	},
 	"customizations": {
+		"codespaces": {
+			"openFiles": ["notebooks/Linear.ipynb"]
+		},
 		"vscode": {
 			"extensions": [
 				"ms-toolsai.jupyter",
