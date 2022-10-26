@@ -4,7 +4,9 @@
 	},
 	"customizations": {
 		"codespaces": {
-			"openFiles": ["notebooks/Linear.ipynb"]
+			"openFiles": [
+				"notebooks/Linear.ipynb"
+			]
 		},
 		"vscode": {
 			"extensions": [
@@ -13,5 +15,5 @@
 			]
 		}
 	},
-	"postCreateCommand": ""
+	"postCreateCommand": "python3 -m pip install -r requirements.txt"
 }
