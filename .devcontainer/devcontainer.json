@@ -5,7 +5,7 @@
 	"customizations": {
 		"codespaces": {
 			"openFiles": [
-				"notebooks/Linear.ipynb"
+				"notebooks/population.ipynb"
 			]
 		},
 		"vscode": {
