@@ -4,9 +4,7 @@
 	},
 	"customizations": {
 		"codespaces": {
-			"openFiles": [
-				"notebooks/population.ipynb"
-			]
+			"openFiles": []
 		},
 		"vscode": {
 			"extensions": [
