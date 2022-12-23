@@ -1,0 +1,116 @@
+2022-12-23 01:04:32,423 INFO    StreamThr :6203 [internal.py:wandb_internal():87] W&B internal server running at pid: 6203, started at: 2022-12-23 01:04:32.422061
+2022-12-23 01:04:32,425 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: status
+2022-12-23 01:04:32,426 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: status
+2022-12-23 01:04:32,502 INFO    WriterThread:6203 [datastore.py:open_for_write():75] open: /workspaces/codespaces-jupyter/notebooks/wandb/run-20221223_010432-2pggok3i/run-2pggok3i.wandb
+2022-12-23 01:04:32,502 DEBUG   SenderThread:6203 [sender.py:send():303] send: header
+2022-12-23 01:04:32,512 DEBUG   SenderThread:6203 [sender.py:send():303] send: run
+2022-12-23 01:04:33,114 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: check_version
+2022-12-23 01:04:33,116 INFO    SenderThread:6203 [dir_watcher.py:__init__():216] watching files in: /workspaces/codespaces-jupyter/notebooks/wandb/run-20221223_010432-2pggok3i/files
+2022-12-23 01:04:33,116 INFO    SenderThread:6203 [sender.py:_start_run_threads():928] run started: 2pggok3i with start time 1671757472.419712
+2022-12-23 01:04:33,116 DEBUG   SenderThread:6203 [sender.py:send():303] send: summary
+2022-12-23 01:04:33,116 INFO    SenderThread:6203 [sender.py:_save_file():1171] saving file wandb-summary.json with policy end
+2022-12-23 01:04:33,117 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: check_version
+2022-12-23 01:04:33,151 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: run_start
+2022-12-23 01:04:33,152 DEBUG   HandlerThread:6203 [system_info.py:__init__():31] System info init
+2022-12-23 01:04:33,152 DEBUG   HandlerThread:6203 [system_info.py:__init__():46] System info init done
+2022-12-23 01:04:33,152 INFO    HandlerThread:6203 [system_monitor.py:start():150] Starting system monitor
+2022-12-23 01:04:33,152 INFO    SystemMonitor:6203 [system_monitor.py:_start():116] Starting system asset monitoring threads
+2022-12-23 01:04:33,153 INFO    HandlerThread:6203 [system_monitor.py:probe():171] Collecting system info
+2022-12-23 01:04:33,155 DEBUG   HandlerThread:6203 [system_info.py:probe():195] Probing system
+2022-12-23 01:04:33,155 INFO    SystemMonitor:6203 [interfaces.py:start():168] Started cpu
+2022-12-23 01:04:33,155 INFO    SystemMonitor:6203 [interfaces.py:start():168] Started disk
+2022-12-23 01:04:33,156 INFO    SystemMonitor:6203 [interfaces.py:start():168] Started memory
+2022-12-23 01:04:33,157 INFO    SystemMonitor:6203 [interfaces.py:start():168] Started network
+2022-12-23 01:04:33,161 DEBUG   HandlerThread:6203 [system_info.py:_probe_git():180] Probing git
+2022-12-23 01:04:33,171 DEBUG   HandlerThread:6203 [system_info.py:_probe_git():188] Probing git done
+2022-12-23 01:04:33,171 DEBUG   HandlerThread:6203 [system_info.py:probe():241] Probing system done
+2022-12-23 01:04:33,171 DEBUG   HandlerThread:6203 [system_monitor.py:probe():180] {'os': 'Linux-5.4.0-1094-azure-x86_64-with-glibc2.31', 'python': '3.10.4', 'heartbeatAt': '2022-12-23T01:04:33.155132', 'startedAt': '2022-12-23T01:04:32.410000', 'docker': None, 'cuda': None, 'args': None, 'state': 'running', 'program': '<python with no main file>', 'git': {'remote': 'https://github.com/asd0936/codespaces-jupyter', 'commit': '1b5179da62ae0e1c0457f7960fd645f26c6eb4e1'}, 'email': 'xjing.gu@gmail.com', 'root': '/workspaces/codespaces-jupyter', 'host': 'codespaces-cac952', 'username': 'codespace', 'executable': '/home/codespace/.python/current/bin/python3', 'cpu_count': 2, 'cpu_count_logical': 4, 'cpu_freq': {'current': 2593.906, 'min': 0.0, 'max': 0.0}, 'cpu_freq_per_core': [{'current': 2593.906, 'min': 0.0, 'max': 0.0}, {'current': 2593.906, 'min': 0.0, 'max': 0.0}, {'current': 2593.906, 'min': 0.0, 'max': 0.0}, {'current': 2593.906, 'min': 0.0, 'max': 0.0}], 'disk': {'total': 31.32598876953125, 'used': 13.892200469970703}, 'memory': {'total': 7.771213531494141}}
+2022-12-23 01:04:33,172 INFO    HandlerThread:6203 [system_monitor.py:probe():181] Finished collecting system info
+2022-12-23 01:04:33,172 INFO    HandlerThread:6203 [system_monitor.py:probe():184] Publishing system info
+2022-12-23 01:04:33,172 DEBUG   HandlerThread:6203 [system_info.py:_save_pip():51] Saving list of pip packages installed into the current environment
+2022-12-23 01:04:33,172 DEBUG   HandlerThread:6203 [system_info.py:_save_pip():67] Saving pip packages done
+2022-12-23 01:04:33,173 INFO    HandlerThread:6203 [system_monitor.py:probe():186] Finished publishing system info
+2022-12-23 01:04:33,176 DEBUG   SenderThread:6203 [sender.py:send():303] send: files
+2022-12-23 01:04:33,177 INFO    SenderThread:6203 [sender.py:_save_file():1171] saving file wandb-metadata.json with policy now
+2022-12-23 01:04:33,187 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:04:33,187 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:04:33,205 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: pause
+2022-12-23 01:04:33,205 INFO    HandlerThread:6203 [handler.py:handle_request_pause():696] stopping system metrics thread or process
+2022-12-23 01:04:33,205 INFO    HandlerThread:6203 [system_monitor.py:finish():160] Stopping system monitor
+2022-12-23 01:04:33,206 DEBUG   SystemMonitor:6203 [system_monitor.py:_start():130] Starting system metrics aggregation loop
+2022-12-23 01:04:33,207 INFO    HandlerThread:6203 [interfaces.py:finish():175] Joined cpu
+2022-12-23 01:04:33,207 DEBUG   SystemMonitor:6203 [system_monitor.py:_start():137] Finished system metrics aggregation loop
+2022-12-23 01:04:33,207 INFO    HandlerThread:6203 [interfaces.py:finish():175] Joined disk
+2022-12-23 01:04:33,207 DEBUG   SystemMonitor:6203 [system_monitor.py:_start():141] Publishing last batch of metrics
+2022-12-23 01:04:33,207 INFO    HandlerThread:6203 [interfaces.py:finish():175] Joined memory
+2022-12-23 01:04:33,208 INFO    HandlerThread:6203 [interfaces.py:finish():175] Joined network
+2022-12-23 01:04:33,439 DEBUG   SenderThread:6203 [sender.py:send():303] send: telemetry
+2022-12-23 01:04:33,439 DEBUG   SenderThread:6203 [sender.py:send():303] send: stats
+2022-12-23 01:04:33,968 INFO    Thread-16 :6203 [upload_job.py:push():143] Uploaded file /tmp/tmp__6zn3zdwandb/43lw5gcb-wandb-metadata.json
+2022-12-23 01:04:34,118 INFO    Thread-13 :6203 [dir_watcher.py:_on_file_created():275] file/dir created: /workspaces/codespaces-jupyter/notebooks/wandb/run-20221223_010432-2pggok3i/files/wandb-summary.json
+2022-12-23 01:04:34,118 INFO    Thread-13 :6203 [dir_watcher.py:_on_file_created():275] file/dir created: /workspaces/codespaces-jupyter/notebooks/wandb/run-20221223_010432-2pggok3i/files/requirements.txt
+2022-12-23 01:04:34,118 INFO    Thread-13 :6203 [dir_watcher.py:_on_file_created():275] file/dir created: /workspaces/codespaces-jupyter/notebooks/wandb/run-20221223_010432-2pggok3i/files/wandb-metadata.json
+2022-12-23 01:04:48,442 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:04:48,442 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:04:56,049 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: resume
+2022-12-23 01:04:56,049 INFO    HandlerThread:6203 [handler.py:handle_request_resume():687] starting system metrics thread or process
+2022-12-23 01:05:03,047 DEBUG   SenderThread:6203 [sender.py:send():303] send: telemetry
+2022-12-23 01:05:03,131 INFO    Thread-13 :6203 [dir_watcher.py:_on_file_modified():292] file/dir modified: /workspaces/codespaces-jupyter/notebooks/wandb/run-20221223_010432-2pggok3i/files/config.yaml
+2022-12-23 01:05:03,804 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:05:03,804 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:05:04,165 DEBUG   SenderThread:6203 [sender.py:send():303] send: telemetry
+2022-12-23 01:05:05,132 INFO    Thread-13 :6203 [dir_watcher.py:_on_file_created():275] file/dir created: /workspaces/codespaces-jupyter/notebooks/wandb/run-20221223_010432-2pggok3i/files/output.log
+2022-12-23 01:05:07,133 INFO    Thread-13 :6203 [dir_watcher.py:_on_file_modified():292] file/dir modified: /workspaces/codespaces-jupyter/notebooks/wandb/run-20221223_010432-2pggok3i/files/output.log
+2022-12-23 01:05:07,260 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: pause
+2022-12-23 01:05:07,260 INFO    HandlerThread:6203 [handler.py:handle_request_pause():696] stopping system metrics thread or process
+2022-12-23 01:05:19,137 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:05:19,137 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:05:34,147 INFO    Thread-13 :6203 [dir_watcher.py:_on_file_modified():292] file/dir modified: /workspaces/codespaces-jupyter/notebooks/wandb/run-20221223_010432-2pggok3i/files/config.yaml
+2022-12-23 01:05:34,391 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:05:34,391 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:05:49,641 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:05:49,641 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:06:04,894 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:06:04,894 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:06:20,148 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:06:20,148 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:06:35,395 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:06:35,396 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:06:50,648 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:06:50,648 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:07:05,902 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:07:05,902 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:07:21,150 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:07:21,150 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:07:36,401 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:07:36,402 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:07:51,649 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:07:51,649 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:08:06,900 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:08:06,901 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:08:22,149 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:08:22,150 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:08:37,399 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:08:37,399 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:08:52,647 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:08:52,648 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:09:07,901 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:09:07,901 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:09:23,149 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:09:23,149 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:09:38,401 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:09:38,401 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:09:53,658 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:09:53,658 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:10:08,912 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:10:08,913 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:10:24,164 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:10:24,164 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:10:39,421 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:10:39,421 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:10:54,677 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:10:54,677 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:11:09,930 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:11:09,931 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status
+2022-12-23 01:11:25,179 DEBUG   HandlerThread:6203 [handler.py:handle_request():139] handle_request: stop_status
+2022-12-23 01:11:25,180 DEBUG   SenderThread:6203 [sender.py:send_request():317] send_request: stop_status

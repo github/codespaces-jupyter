@@ -1,0 +1,17 @@
+Downloading training data...
+Files already downloaded and verified
+Downloading training data...
+Files already downloaded and verified
+{"hyperparameters": "dict", "np": "module", "os": "module", "plt": "module", "sys": "module", "torch": "module", "torchvision": "module", "trainset": "CIFAR10", "transform": "Compose", "transforms": "module", "wandb": "module"}
+{"hyperparameters": "dict", "np": "module", "os": "module", "plt": "module", "sys": "module", "torch": "module", "torchvision": "module", "trainset": "CIFAR10", "transform": "Compose", "transforms": "module", "wandb": "module"}
+{"shape": "", "count": 7, "type": "dict"}
+{"shape": "", "count": 7, "type": "dict"}
+Downloading training data...
+Files already downloaded and verified
+{"hyperparameters": "dict", "np": "module", "os": "module", "plt": "module", "sys": "module", "torch": "module", "torchvision": "module", "trainset": "CIFAR10", "transform": "Compose", "transforms": "module", "wandb": "module"}
+{"shape": "", "count": 7, "type": "dict"}
+{"hyperparameters": "dict", "np": "module", "os": "module", "plt": "module", "sys": "module", "torch": "module", "torchvision": "module", "trainset": "CIFAR10", "transform": "Compose", "transforms": "module", "wandb": "module"}
+{"hyperparameters": "dict", "np": "module", "os": "module", "plt": "module", "sys": "module", "torch": "module", "torchvision": "module", "trainset": "CIFAR10", "transform": "Compose", "transforms": "module", "wandb": "module"}
+{"columns": [{"key": "index", "name": "index", "type": "int64"}, {"key": "0", "name": "0", "type": "object"}], "indexColumn": "index", "rowCount": 7}
+{"shape": "", "count": 7, "type": "dict"}
+{"shape": "", "count": 7, "type": "dict"}
