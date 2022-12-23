@@ -71,3 +71,6 @@ Accuracy for class: frog  is 75.8 %
 Accuracy for class: horse is 64.4 %
 Accuracy for class: ship  is 67.7 %
 Accuracy for class: truck is 62.5 %
+[34m[1mwandb[39m[22m: [33mWARNING[39m Calling wandb.login() after wandb.init() has no effect.
+Note: you may need to restart the kernel to use updated packages.
+[34m[1mwandb[39m[22m: [33mWARNING[39m Calling wandb.login() after wandb.init() has no effect.

@@ -1,0 +1,4 @@
+2022-12-23 03:57:11 ERROR dropped chunk 404 Client Error: Not Found for url: https://api.wandb.ai/files/ecust-bestcv/image-classifier/1ba97j35/file_stream
+NoneType: None
+2022-12-23 04:09:32 ERROR dropped chunk 404 Client Error: Not Found for url: https://api.wandb.ai/files/ecust-bestcv/image-classifier/19wxr3y9/file_stream
+NoneType: None
