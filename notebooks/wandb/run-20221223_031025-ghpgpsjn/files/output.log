@@ -1,0 +1,73 @@
+Downloading training data...
+Files already downloaded and verified
+Downloading testing data...
+Files already downloaded and verified
+Your network is ready for training!
+cpu
+Epoch 1 of 3:   4%|█                        | 223/5000 [00:01<00:36, 129.13it/s]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Epoch 1 of 3: 100%|████████████████████████| 5000/5000 [00:35<00:00, 141.74it/s]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Epoch 2 of 3: 100%|████████████████████████| 5000/5000 [00:35<00:00, 139.82it/s]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Epoch 3 of 3:  99%|███████████████████████▊| 4959/5000 [00:34<00:00, 151.54it/s]
+
+Epoch 3 of 3: 100%|████████████████████████| 5000/5000 [00:34<00:00, 143.41it/s]
+Accuracy for class: plane is 63.7 %
+Accuracy for class: plane is 63.7 %
+Accuracy for class: car   is 62.7 %
+Accuracy for class: bird  is 36.9 %
+Accuracy for class: cat   is 48.9 %
+Accuracy for class: deer  is 32.8 %
+Accuracy for class: dog   is 38.7 %
+Accuracy for class: frog  is 75.8 %
+Accuracy for class: horse is 64.4 %
+Accuracy for class: ship  is 67.7 %
+Accuracy for class: truck is 62.5 %

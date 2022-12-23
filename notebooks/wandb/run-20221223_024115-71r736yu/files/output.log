@@ -1,0 +1,61 @@
+
+Downloading training data...
+Files already downloaded and verified
+Downloading testing data...
+Files already downloaded and verified
+Your network is ready for training!
+cpu
+Training...
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Epoch 1 of 3: 100%|████████████████████████| 5000/5000 [00:34<00:00, 144.66it/s]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Epoch 2 of 3: 100%|████████████████████████| 5000/5000 [00:35<00:00, 141.58it/s]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Epoch 3 of 3: 100%|████████████████████████| 5000/5000 [00:34<00:00, 146.74it/s]
+Training time: 1.73 minutes
