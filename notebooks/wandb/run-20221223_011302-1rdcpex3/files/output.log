@@ -15,3 +15,172 @@ Files already downloaded and verified
 {"columns": [{"key": "index", "name": "index", "type": "int64"}, {"key": "0", "name": "0", "type": "object"}], "indexColumn": "index", "rowCount": 7}
 {"shape": "", "count": 7, "type": "dict"}
 {"shape": "", "count": 7, "type": "dict"}
+{"columns":[0],"index":["use_amp","epochs","batch_size","lr","momentum","dataset","architecture"],"data":[[false],[3],[10],[0.001],[0.9],["CIFAR10"],["CNN"]]}
+Bad pipe message: %s [b'?\x83\xc2d6\x81L\x8a\x8f\n\xdf\xac\xe8M=}\xdd\x1a ']
+Bad pipe message: %s [b'\xf8\x81#\x0c\xfa{g\x8bq\xd7\x13\xfa\xfe\xf6\xb0\xf33\xe2UO\x91\x9bew\x8db\x12\x92\x8c+\x00\x08\x13\x02\x13\x03\x13\x01\x00\xff\x01\x00\x00\x8f\x00\x00\x00\x0e\x00\x0c\x00\x00\t127.0.0.1\x00\x0b\x00\x04\x03\x00\x01\x02\x00\n\x00\x0c\x00\n\x00\x1d\x00\x17\x00\x1e\x00\x19\x00\x18\x00#\x00\x00\x00\x16\x00\x00\x00\x17\x00\x00\x00\r\x00\x1e\x00\x1c\x04\x03\x05\x03\x06\x03\x08\x07\x08\x08\x08\t\x08\n\x08\x0b\x08\x04\x08\x05\x08\x06\x04\x01\x05\x01\x06\x01\x00+\x00\x03\x02\x03\x04\x00-\x00\x02\x01\x01\x003\x00&\x00', b'\x1d\x00 \x1e_\xef`\x9d\r\x14T\xc0\x0b\x0f\xa9\xc3R\xbcm\x9eM\x85^x900\xfa\x19\xdcR>\xb4\xeaI']
+Bad pipe message: %s [b'\xb3\x02(l_\xb4D\xc2\x89\x00\xdd\xc8\x9b\x18E\xa9\x06\xda 1m\xce\x16@fZ\xf4\xb2\xae\xe2b\xee^\xb4Wfg\x84d\xdc\xe2yt\xc3AsZ\xe1\xc5\x15\xe2\x00\x08\x13\x02\x13\x03\x13\x01\x00\xff\x01\x00\x00\x8f\x00\x00\x00\x0e\x00\x0c']
+Bad pipe message: %s [b'\xa0\x8dx\n\xfe', b'\x8d\x1a\x18\xc7\xf8\xf1\xb9\x96\x9d\xc5k\x00\x00\xa2\xc0\x14\xc0\n\x009\x008\x007\x006\x00\x88\x00\x87\x00\x86\x00\x85\xc0\x19\x00:\x00\x89\xc0\x0f\xc0\x05\x005\x00\x84\xc0\x13\xc0\t\x003\x002\x001\x000\x00\x9a\x00\x99\x00\x98\x00\x97\x00E\x00D\x00C']
+Bad pipe message: %s [b'\xb4\xbe\x1d\xbd=\x9c\xa7\x05j}\xf5\xfe\xbf\xa6\xb2\xc9\xf3,\x00\x00']
+Bad pipe message: %s [b'\x14\xc0\n\x009\x008\x007\x006\x00\x88\x00\x87\x00\x86\x00\x85\xc0\x19\x00:\x00\x89\xc0\x0f\xc0\x05\x005\x00\x84\xc0\x13\xc0\t\x003\x002\x001\x000\x00\x9a\x00\x99\x00\x98\x00\x97\x00E\x00D\x00C\x00B\xc0\x18\x004\x00\x9b\x00F\xc0\x0e\xc0\x04\x00/\x00\x96\x00A\x00\x07\xc0\x11\xc0\x07\xc0\x16\x00\x18\xc0\x0c\xc0\x02\x00\x05\x00\x04\xc0\x12\xc0\x08\x00\x16\x00\x13\x00\x10\x00\r\xc0\x17\x00\x1b\xc0\r\xc0\x03\x00\n\x00\x15\x00\x12\x00\x0f\x00\x0c\x00\x1a\x00\t\x00\x14\x00\x11\x00\x19\x00\x08\x00\x06\x00\x17\x00\x03\xc0\x10\xc0\x06\xc0\x15\xc0\x0b\xc0\x01\x00\x02\x00\x01\x00\xff']
+Bad pipe message: %s [b'\xc1J\x11n@B"p\xee\x96\x86\xfaG\xa7\x01\x14g\x93\x00\x00\xa2\xc0\x14\xc0\n\x009\x008\x007\x006\x00\x88\x00\x87\x00\x86\x00\x85\xc0\x19\x00:\x00\x89\xc0\x0f\xc0\x05\x005\x00\x84\xc0\x13\xc0\t\x003\x002\x001\x000\x00\x9a\x00\x99\x00\x98\x00\x97\x00E\x00D\x00C\x00B\xc0\x18\x004\x00\x9b\x00F\xc0\x0e\xc0\x04\x00/\x00\x96\x00A\x00\x07\xc0\x11\xc0\x07\xc0\x16\x00\x18\xc0\x0c\xc0\x02\x00\x05\x00\x04\xc0\x12\xc0\x08\x00\x16\x00\x13\x00\x10\x00\r\xc0\x17\x00\x1b\xc0\r\xc0\x03\x00\n\x00\x15\x00\x12\x00\x0f\x00\x0c\x00\x1a\x00\t\x00\x14\x00\x11\x00']
+Bad pipe message: %s [b'\x08\x00\x06\x00\x17\x00\x03\xc0\x10\xc0\x06\xc0\x15\xc0\x0b\xc0\x01\x00\x02\x00\x01\x00\xff\x02']
+Bad pipe message: %s [b'']
+Bad pipe message: %s [b"\xc3\x8c\xac\x1d\x94\x8ak\xdd\xae\xa0\x81\xd7\x8c\x81\x8a\x11Q\xe2\x00\x00\xf4\xc00\xc0,\xc0(\xc0$\xc0\x14\xc0\n\x00\xa5\x00\xa3\x00\xa1\x00\x9f\x00k\x00j\x00i\x00h\x009\x008\x007\x006\x00\x88\x00\x87\x00\x86\x00\x85\xc0\x19\x00\xa7\x00m\x00:\x00\x89\xc02\xc0.\xc0*\xc0&\xc0\x0f\xc0\x05\x00\x9d\x00=\x005\x00\x84\xc0/\xc0+\xc0'\xc0#\xc0\x13\xc0\t\x00\xa4\x00\xa2\x00\xa0\x00\x9e\x00g\x00@\x00?\x00>\x003\x002\x001\x000\x00\x9a\x00\x99\x00\x98\x00\x97\x00E\x00D\x00C\x00B\xc0\x18\x00\xa6\x00l\x004\x00\x9b\x00F\xc01\xc0-\xc0)\xc0%\xc0\x0e\xc0\x04\x00\x9c\x00<\x00/\x00\x96\x00A\x00\x07\xc0\x11\xc0\x07\xc0\x16\x00\x18\xc0\x0c\xc0\x02\x00\x05\x00\x04\xc0\x12\xc0\x08\x00\x16\x00\x13\x00\x10\x00\r\xc0\x17\x00\x1b\xc0\r\xc0\x03\x00\n\x00\x15\x00\x12\x00\x0f\x00\x0c\x00\x1a\x00\t\x00\x14\x00"]
+Bad pipe message: %s [b'\x19\x00\x08\x00\x06\x00\x17\x00\x03\xc0\x10\xc0\x06\xc0\x15\xc0']
+Bad pipe message: %s [b'\x01\x00;\x00\x02\x00\x01\x00\xff\x02']
+Bad pipe message: %s [b'']
+Exception in thread SockSrvRdThr:
+Traceback (most recent call last):
+  File "/home/codespace/.python/current/lib/python3.10/threading.py", line 1009, in _bootstrap_inner
+    self.run()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/service/server_sock.py", line 100, in run
+    sreq = self._sock_client.read_server_request()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 274, in read_server_request
+    data = self._read_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 248, in _read_packet_bytes
+    rec = self._extract_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 230, in _extract_packet_bytes
+    assert magic == ord("W")
+AssertionError
+Exception in thread SockSrvRdThr:
+Traceback (most recent call last):
+  File "/home/codespace/.python/current/lib/python3.10/threading.py", line 1009, in _bootstrap_inner
+    self.run()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/service/server_sock.py", line 100, in run
+    sreq = self._sock_client.read_server_request()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 274, in read_server_request
+    data = self._read_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 248, in _read_packet_bytes
+    rec = self._extract_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 230, in _extract_packet_bytes
+    assert magic == ord("W")
+AssertionError
+Exception in thread SockSrvRdThr:
+Traceback (most recent call last):
+  File "/home/codespace/.python/current/lib/python3.10/threading.py", line 1009, in _bootstrap_inner
+    self.run()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/service/server_sock.py", line 100, in run
+    sreq = self._sock_client.read_server_request()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 274, in read_server_request
+    data = self._read_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 248, in _read_packet_bytes
+    rec = self._extract_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 230, in _extract_packet_bytes
+    assert magic == ord("W")
+AssertionError
+Exception in thread SockSrvRdThr:
+Traceback (most recent call last):
+  File "/home/codespace/.python/current/lib/python3.10/threading.py", line 1009, in _bootstrap_inner
+    self.run()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/service/server_sock.py", line 100, in run
+    sreq = self._sock_client.read_server_request()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 274, in read_server_request
+    data = self._read_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 248, in _read_packet_bytes
+    rec = self._extract_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 230, in _extract_packet_bytes
+    assert magic == ord("W")
+AssertionError
+Exception in thread SockSrvRdThr:
+Traceback (most recent call last):
+  File "/home/codespace/.python/current/lib/python3.10/threading.py", line 1009, in _bootstrap_inner
+    self.run()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/service/server_sock.py", line 100, in run
+    sreq = self._sock_client.read_server_request()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 274, in read_server_request
+    data = self._read_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 248, in _read_packet_bytes
+    rec = self._extract_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 230, in _extract_packet_bytes
+    assert magic == ord("W")
+AssertionError
+Exception in thread SockSrvRdThr:
+Traceback (most recent call last):
+  File "/home/codespace/.python/current/lib/python3.10/threading.py", line 1009, in _bootstrap_inner
+    self.run()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/service/server_sock.py", line 100, in run
+    sreq = self._sock_client.read_server_request()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 274, in read_server_request
+    data = self._read_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 248, in _read_packet_bytes
+    rec = self._extract_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 230, in _extract_packet_bytes
+    assert magic == ord("W")
+AssertionError
+Exception in thread SockSrvRdThr:
+Traceback (most recent call last):
+  File "/home/codespace/.python/current/lib/python3.10/threading.py", line 1009, in _bootstrap_inner
+    self.run()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/service/server_sock.py", line 100, in run
+    sreq = self._sock_client.read_server_request()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 274, in read_server_request
+    data = self._read_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 248, in _read_packet_bytes
+    rec = self._extract_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 230, in _extract_packet_bytes
+    assert magic == ord("W")
+AssertionError
+Exception in thread SockSrvRdThr:
+Traceback (most recent call last):
+  File "/home/codespace/.python/current/lib/python3.10/threading.py", line 1009, in _bootstrap_inner
+    self.run()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/service/server_sock.py", line 100, in run
+    sreq = self._sock_client.read_server_request()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 274, in read_server_request
+    data = self._read_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 248, in _read_packet_bytes
+    rec = self._extract_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 230, in _extract_packet_bytes
+    assert magic == ord("W")
+AssertionError
+Exception in thread SockSrvRdThr:
+Traceback (most recent call last):
+  File "/home/codespace/.python/current/lib/python3.10/threading.py", line 1009, in _bootstrap_inner
+    self.run()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/service/server_sock.py", line 100, in run
+    sreq = self._sock_client.read_server_request()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 274, in read_server_request
+    data = self._read_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 248, in _read_packet_bytes
+    rec = self._extract_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 230, in _extract_packet_bytes
+    assert magic == ord("W")
+AssertionError
+Exception in thread SockSrvRdThr:
+Traceback (most recent call last):
+  File "/home/codespace/.python/current/lib/python3.10/threading.py", line 1009, in _bootstrap_inner
+    self.run()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/service/server_sock.py", line 100, in run
+    sreq = self._sock_client.read_server_request()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 274, in read_server_request
+    data = self._read_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 248, in _read_packet_bytes
+    rec = self._extract_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 230, in _extract_packet_bytes
+    assert magic == ord("W")
+AssertionError
+Exception in thread SockSrvRdThr:
+Traceback (most recent call last):
+  File "/home/codespace/.python/current/lib/python3.10/threading.py", line 1009, in _bootstrap_inner
+    self.run()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/service/server_sock.py", line 100, in run
+    sreq = self._sock_client.read_server_request()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 274, in read_server_request
+    data = self._read_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 248, in _read_packet_bytes
+    rec = self._extract_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 230, in _extract_packet_bytes
+    assert magic == ord("W")
+AssertionError
+Exception in thread SockSrvRdThr:
+Traceback (most recent call last):
+  File "/home/codespace/.python/current/lib/python3.10/threading.py", line 1009, in _bootstrap_inner
+    self.run()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/service/server_sock.py", line 100, in run
+    sreq = self._sock_client.read_server_request()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 274, in read_server_request
+    data = self._read_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 248, in _read_packet_bytes
+    rec = self._extract_packet_bytes()
+  File "/home/codespace/.python/current/lib/python3.10/site-packages/wandb/sdk/lib/sock_client.py", line 230, in _extract_packet_bytes
+    assert magic == ord("W")
