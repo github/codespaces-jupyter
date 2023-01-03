@@ -4,6 +4,7 @@
     "cpus": 4
   },
   "waitFor": "onCreateCommand",
+  "initializeCommand": "docker system prune -af",
   "updateContentCommand": "python3 -m pip install -r requirements.txt",
   "postCreateCommand": "",
   "customizations": {
