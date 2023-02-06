@@ -1,0 +1,61 @@
+# import all the required packages
+from tkinter import *
+from pygame import mixer
+import os
+
+# Creating interface or root window
+root=Tk()
+
+# To make the size of the window static
+root.resizable(1,1)
+
+# To Insert a title to the created root window
+root.title('Music Player')
+
+# Function to play the song
+def play():
+    currentSong=playlist.get(ACTIVE)
+    mixer.music.load(currentSong)
+    mixer.music.play()
+
+# Function to pause the song which is currently playing
+def pause():
+    mixer.music.pause()
+
+# Function to resume the song which has paused
+def resume():
+    mixer.music.unpause()
+
+
+# Function to stop the currently playing song
+def stop():
+    mixer.music.stop()
+
+# Intilaizing the mixer module
+mixer.init()
+
+# Creating a listbox where the list of songs are going to be displayed
+playlist = Listbox(root, selectmode=SINGLE, bg="green", fg="white", font=('arial', 15), width=30)
+playlist.grid(columnspan=4)
+
+# Specify the directory where the songs are placed
+os.chdir = os.chdir(r"C:\Semester 8\AI")
+songs = os.listdir()
+for s in songs:
+    playlist.insert(END, s)
+
+#Buttons to play,pause,resume and stop the song
+playButton = Button( root, text="Play", command=play, bg='white', fg='green' )
+playButton.grid( row=1, column=0 )
+
+pauseButton = Button( root, text="Pause", command=pause, bg='white', fg='green' )
+pauseButton.grid( row=1, column=1 )
+
+resumeButton = Button( root, text="Resume", command=resume, bg='white', fg='green' )
+resumeButton.grid( row=1, column=2 )
+
+stopButton = Button( root, text="Stop", command=stop, bg='white', fg='green' )
+stopButton.grid( row=1, column=3 )
+
+# To execute the output window
+mainloop()
