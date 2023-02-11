@@ -5,7 +5,7 @@
 			"version":"latest",
 			"installJupyterlab":true
 		}
-	},
+  },
   "hostRequirements": {
     "cpus": 4
   },
