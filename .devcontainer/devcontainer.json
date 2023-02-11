@@ -1,5 +1,11 @@
 {
   "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "features": {
+		"ghcr.io/devcontainers/features/python:1": {
+			"version":"latest",
+			"installJupyterlab":true
+		}
+	},
   "hostRequirements": {
     "cpus": 4
   },
