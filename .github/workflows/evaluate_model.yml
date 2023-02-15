@@ -1,0 +1,56 @@
+name: Evaluate Image Classifier
+
+on:
+  # Triggers the workflow on pull request if image-classifier.ipynb or this workflow have changed
+  pull_request:
+    paths:
+      - 'notebooks/image-classifier.ipynb'
+      - '.github/workflows/evaluate_model.yml'
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+
+  # This workflow contains one job, which runs on Ubuntu and is allowed to comment on PRs
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+      
+      # Set up Python
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      # Restore cache of Python environment (if available)
+      - uses: actions/cache@v3.2.5
+        with:
+          path: ${{ env.pythonLocation }} #see https://github.com/actions/setup-python/pull/418
+          key: ${{ env.pythonLocation }}-${{ hashFiles('setup.py') }}-${{ hashFiles('requirements.txt') }}
+          
+      # Run pip install using requirements.txt
+      - run: python3 -m pip install -r requirements.txt
+
+      # Test the model
+      - uses: yaananth/run-notebook@v2
+        with:
+          notebook: "notebooks/image-classifier.ipynb"
+          isReport: True
+          poll: False
+        env:
+          RUNNER: ${{ toJson(runner) }}
+          SECRETS: ${{ toJson(secrets) }}
+          GITHUB: ${{ toJson(github) }}
+
+      # extract model accuracy from output
+      - run: >
+          grep '^Accuracy for class' ${{ RUNNER.temp }}/nb-runner/image-classifier.html
+          >> ${{ RUNNER.temp }}/nb-runner/image-classifier-accuracy.txt
+      
+      # Create PR comment
+      - uses: mshick/add-pr-comment@v2
+        with:
+          message-path: ${{ RUNNER.temp }}/nb-runner/image-classifier-accuracy.txt
