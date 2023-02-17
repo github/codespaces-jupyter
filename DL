@@ -1,0 +1,65 @@
+def train(model, optimizer, criterion, train_loader, val_loader, num_epochs):
+    """
+    Trains a neural network on a given dataset using the specified optimizer and loss function.
+
+    Args:
+        model: the neural network model to train
+        optimizer: the optimizer to use for training (e.g., SGD, Adam)
+        criterion: the loss function to use for training (e.g., CrossEntropyLoss)
+        train_loader: the data loader for the training set
+        val_loader: the data loader for the validation set
+        num_epochs: the number of epochs to train the model
+
+    Returns:
+        A tuple of (train_losses, val_losses), where train_losses is a list of training losses
+        for each epoch and val_losses is a list of validation losses for each epoch.
+    """
+    
+    # Define two empty lists to store the training and validation losses for each epoch
+    train_losses = []
+    val_losses = []
+    
+    # Loop over the specified number of epochs
+    for epoch in range(num_epochs):
+        
+        # Set the model to training mode
+        model.train()
+        
+        # Loop over the training set in batches
+        for i, (inputs, labels) in enumerate(train_loader):
+            
+            # Zero the gradients
+            optimizer.zero_grad()
+            
+            # Forward pass
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            
+            # Backward pass and optimization
+            loss.backward()
+            optimizer.step()
+            
+            # Add the batch loss to the total training loss for this epoch
+            train_losses.append(loss.item())
+            
+        # Set the model to evaluation mode
+        model.eval()
+        
+        # Disable gradient computation to speed up validation
+        with torch.no_grad():
+            
+            # Compute the validation loss for the entire validation set
+            val_loss = 0.0
+            for inputs, labels in val_loader:
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
+                val_loss += loss.item()
+            
+            # Add the validation loss to the list of validation losses for this epoch
+            val_losses.append(val_loss / len(val_loader))
+            
+        # Print the training and validation losses for this epoch
+        print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_losses[-1]:.4f}, Val Loss: {val_losses[-1]:.4f}")
+    
+    # Return the list of training and validation losses for each epoch
+    return train_losses, val_losses
