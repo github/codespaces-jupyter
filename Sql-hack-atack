@@ -1,0 +1,4 @@
+Code/test/florp 
+Kali-Exploiter> ./python api_sql_injection_Instahack.py
+--exploit-on=https://sehackear.com/SECRET/API
+--Facebook-sql-url--https://www.facebook.com/daniela.nieto.79069323
