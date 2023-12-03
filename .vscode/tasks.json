@@ -9,6 +9,15 @@
 			],
 			"group": "build",
 			"label": "deno: bundle"
+		},
+		{
+			"type": "deno",
+			"command": "bundle",
+			"problemMatcher": [
+				"$deno"
+			],
+			"group": "build",
+			"label": "deno: bundle"
 		}
 	]
 }
