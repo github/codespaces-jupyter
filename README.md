@@ -1,4 +1,4 @@
-# Build your first ML Pipeline workshop for the MLOPs community + Git
+# Build your first ML Pipeline workshop by the MLOPs community + Girls In Tech
 
 ## Instructions for the workskop
 
