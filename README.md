@@ -6,6 +6,8 @@
 2. Fork this repo
 3. Open it in codespaces to develop!
 
+You can read more about developing with codespaces [here](https://docs.github.com/en/codespaces/developing-in-a-codespace/creating-a-codespace-for-a-repository#creating-a-codespace-for-a-repository).
+
 
 ## How to contribute to this repo code
 
