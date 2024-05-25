@@ -1,4 +1,4 @@
-# Build your first ml pipeline workshop source code by the Mlops.community + Girls In Tech
+# Build your first ml pipeline workshop source code by the MLOps.community + Girls In Tech
 
 [Workshop website](https://www.eventbrite.de/e/ai-launchpad-building-your-first-ml-pipeline-tickets-906687826697?utm_campaign=Weekly+Newsletter+-+2024-05-23&utm_content=Weekly+Newsletter&utm_medium=email_action&utm_source=customer.io) 
 
