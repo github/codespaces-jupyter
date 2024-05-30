@@ -1,0 +1,15 @@
+artifact_uri: file:///workspaces/build-your-first-ml-pipeline-workshop/notebooks/mlruns/0/bcd3e16c12ac48b48a42b0ebc6e887b9/artifacts
+end_time: null
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: bcd3e16c12ac48b48a42b0ebc6e887b9
+run_name: trusting-ray-184
+run_uuid: bcd3e16c12ac48b48a42b0ebc6e887b9
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1717099878953
+status: 1
+tags: []
+user_id: codespace
