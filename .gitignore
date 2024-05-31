@@ -2,3 +2,6 @@ notebooks/data
 notebooks/cifar_net.pth
 .ipynb_checkpoints/
 .idea
+*.pyc
+**__pycache__**
+**.egg.info
