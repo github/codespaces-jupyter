@@ -6,8 +6,8 @@ setuptools.setup(
     packages=[
         "workshop",
     ],
-    author="Jean Carlo Machado",
-    author_email="machado.c.jean@gmail.com",
+    author="MLOps community + Girls in tech",
+    author_email="youremail@gmail.com",
     description="workshop",
     long_description="",
     long_description_content_type="text/markdown",
