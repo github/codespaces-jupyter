@@ -7,3 +7,4 @@ datasets
 streamlit==1.35.0
 mlflow-skinny==2.13.1
 sentence-transformers
+fire
