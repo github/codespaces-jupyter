@@ -4,7 +4,7 @@
 
 ## Instructions for the workskop
 
-1. Setup a githubaccount
+1. [Create a github account](https://github.com/signup) if you dont have one
 2. Fork this repo
 3. Open it in codespaces to develop!
 
