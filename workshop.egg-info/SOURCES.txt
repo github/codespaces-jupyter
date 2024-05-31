@@ -1,0 +1,11 @@
+LICENSE
+README.md
+setup.py
+workshop/__init__.py
+workshop/config.py
+workshop/pipeline.py
+workshop/streamlit_ui.py
+workshop.egg-info/PKG-INFO
+workshop.egg-info/SOURCES.txt
+workshop.egg-info/dependency_links.txt
+workshop.egg-info/top_level.txt
