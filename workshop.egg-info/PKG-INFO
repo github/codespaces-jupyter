@@ -1,0 +1,11 @@
+Metadata-Version: 2.1
+Name: workshop
+Version: 0.1.1
+Summary: workshop
+Author: MLOps community + Girls in tech
+Author-email: youremail@gmail.com
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
