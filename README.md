@@ -6,17 +6,15 @@
 ## Instructions for the workskop
 
 1. [Create a github account](https://github.com/signup) if you dont have one
-2. Fork this repo
-3. Open it in codespaces to develop!
+2. [Fork this repo](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo)
+3. [Open it in codespaces to develop!](https://docs.github.com/en/codespaces/getting-started/quickstart)
 
 You can read more about developing with codespaces [here](https://docs.github.com/en/codespaces/developing-in-a-codespace/creating-a-codespace-for-a-repository#creating-a-codespace-for-a-repository).
 
 ## Running streamlit UI
 
-
-```py
+```bash
 streamlit run workshop/streamlit_ui.py 
 ```
 
 Your VSCode in codespaces will offer to open the link in the browser, accept it and you will be able to develop :)
- 

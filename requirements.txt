@@ -1,7 +1,8 @@
 ipywidgets==8.1.2
 matplotlib==3.8.4
 pandas==2.2.2
-torch==2.3.0
+--find-links https://download.pytorch.org/whl/torch_stable.html
+torch==2.3.0+cpu
 tqdm==4.66.4
 datasets==2.19.1
 streamlit==1.35.0
