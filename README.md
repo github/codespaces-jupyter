@@ -11,7 +11,7 @@
 
 You can read more about developing with codespaces [here](https://docs.github.com/en/codespaces/developing-in-a-codespace/creating-a-codespace-for-a-repository#creating-a-codespace-for-a-repository).
 
-## Running streamlit UI
+## Running streamlit UI DEMO
 
 ```bash
 streamlit run workshop/streamlit_ui.py 
