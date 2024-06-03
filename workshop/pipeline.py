@@ -3,10 +3,9 @@ from datasets import load_dataset
 
 from sentence_transformers import SentenceTransformer
 
-from sklearn.model_selection import train_test_split, RandomizedSearchCV
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.linear_model import LogisticRegression
 
 from workshop.config import label_names
 
@@ -51,12 +50,14 @@ class Pipeline:
         print(classification_report(y_val, y_pred))
 
         self.model = knn
-        self.test_model("I still haven't recieved my card, when will it be ready?")
+        self.predict("I still haven't recieved my card, when will it be ready?")
+
+        # TODO
+        # Add mlflow
 
         return self.model
     
-
-    def test_model(self, text_input):
+    def predict(self, text_input):
         print(f"Prediction for {text_input}")
         print(self.model.predict(self.embeddings_model.encode(text_input).reshape(1, -1)))
 

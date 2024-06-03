@@ -5,5 +5,4 @@ notebooks/cifar_net.pth
 *.pyc
 **__pycache__**
 **.egg.info
-**.egg-info
 notebooks/mlruns/0
