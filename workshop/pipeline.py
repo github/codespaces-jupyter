@@ -32,13 +32,12 @@ class Pipeline:
             train_embeddings, train_data['label_name'], test_size=0.2, random_state=0)
 
         print("Training KNN")
-        mlflow.autolog()
         
-        with mlflow.start_run():    
-            knn = KNeighborsClassifier(n_neighbors=5, weights='distance', metric='cosine')
-            knn.fit(X_train, y_train)
-            y_pred = knn.predict(X_val)
-            print(classification_report(y_val, y_pred))
+        # TODO:  use mlflow to log this part, look at how to use autolog in mlflow documentation  
+        knn = KNeighborsClassifier(n_neighbors=5, weights='distance', metric='cosine')
+        knn.fit(X_train, y_train)
+        y_pred = knn.predict(X_val)
+        print(classification_report(y_val, y_pred))
 
         self.model = knn
         self.predict("I still haven't recieved my card, when will it be ready?")
@@ -68,12 +67,16 @@ class Pipeline:
     
     def predict(self, text_input):
         print(f"Prediction for {text_input}")
+        if not self.model:
+            raise Exception("You first need to train a model use pipeline.train to do so")
+        
         print(self.model.predict(self.embeddings_model.encode(text_input).reshape(1, -1)))
 
 
     def predict_mlflow_model(self, text_input):
         if not self._mlflow_model:
-            self._mlflow_model = mlflow.sklearn.load_model("file:///workspaces/build-your-first-ml-pipeline-workshop/mlruns/0/acda9ccd6a9346f79167182ce832c3bb/artifacts/model")
+            model_id = 'f7803a89026846af89665631df562d9d'
+            self._mlflow_model = mlflow.sklearn.load_model(f"file:///workspaces/build-your-first-ml-pipeline-workshop/mlruns/0/{model_id}/artifacts/model")
 
         return self._mlflow_model.predict(self.embeddings_model.encode(text_input).reshape(1, -1))
 

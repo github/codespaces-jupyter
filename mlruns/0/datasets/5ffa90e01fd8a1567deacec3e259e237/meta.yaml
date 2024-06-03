@@ -1,0 +1,9 @@
+digest: c6827ad1
+name: dataset
+profile: '{"features_shape": [2001, 768], "features_size": 1536768, "features_nbytes":
+  6147072}'
+schema: '{"mlflow_tensorspec": {"features": "[{\"type\": \"tensor\", \"tensor-spec\":
+  {\"dtype\": \"float32\", \"shape\": [-1, 768]}}]", "targets": null}}'
+source: '{"tags": {"mlflow.user": "codespace", "mlflow.source.name": "workshop/pipeline.py",
+  "mlflow.source.type": "LOCAL", "mlflow.source.git.commit": "ac4871b18334c97e6b4ee30f1de6db2168bb91e8"}}'
+source_type: code
