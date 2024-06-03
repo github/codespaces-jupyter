@@ -6,7 +6,7 @@ torch==2.3.0+cpu
 tqdm==4.66.4
 datasets==2.19.1
 streamlit==1.35.0
-mlflow-skinny==2.13.1
+mlflow==2.13.1
 sentence-transformers
 fire
 huggingface_hub==0.23.2

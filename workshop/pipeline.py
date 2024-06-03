@@ -13,7 +13,11 @@ from workshop.config import label_names
 
 class Pipeline:
     def __init__(self):
+        print("Initializing sentence transformers")
         self.embeddings_model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
+        print("Setting correct mlflow tracking path")
+        mlflow.set_tracking_uri("file:///workspaces/build-your-first-ml-pipeline-workshop/mlruns")
+
         self._mlflow_model = None
 
     def train(self, train_data = None, test_data = None, train_embeddings = None, sample_train_n=None):
@@ -32,7 +36,6 @@ class Pipeline:
             train_embeddings, train_data['label_name'], test_size=0.2, random_state=0)
 
         print("Training KNN")
-        
         # TODO:  use mlflow to log this part, look at how to use autolog in mlflow documentation  
         knn = KNeighborsClassifier(n_neighbors=5, weights='distance', metric='cosine')
         knn.fit(X_train, y_train)
