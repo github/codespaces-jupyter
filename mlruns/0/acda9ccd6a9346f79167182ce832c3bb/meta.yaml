@@ -1,0 +1,15 @@
+artifact_uri: file:///workspaces/build-your-first-ml-pipeline-workshop/mlruns/0/acda9ccd6a9346f79167182ce832c3bb/artifacts
+end_time: 1717386625718
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: acda9ccd6a9346f79167182ce832c3bb
+run_name: bouncy-chimp-586
+run_uuid: acda9ccd6a9346f79167182ce832c3bb
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1717386617049
+status: 3
+tags: []
+user_id: codespace

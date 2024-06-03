@@ -1,5 +1,7 @@
 import pandas as pd
+from typing import Tuple
 from datasets import load_dataset
+import mlflow
 
 from sentence_transformers import SentenceTransformer
 
@@ -10,7 +12,40 @@ from sklearn.neighbors import KNeighborsClassifier
 from workshop.config import label_names
 
 class Pipeline:
-    def load_dataset(self):
+    def __init__(self):
+        self.embeddings_model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
+        self._mlflow_model = None
+
+    def train(self, train_data = None, test_data = None, train_embeddings = None, sample_train_n=None):
+        if not isinstance(train_data, pd.DataFrame) or not isinstance(test_data, pd.DataFrame):
+            train_data, test_data = self.load_dataset()
+
+        # to be able to test the pipeline faster we sample it down
+        if sample_train_n:
+            print(f"Sampling the training set to a smaller quantity {sample_train_n} ")
+            train_data = train_data.sample(sample_train_n)
+
+        if not isinstance(train_embeddings, pd.DataFrame):
+            train_embeddings = self.create_embeddings(train_data)
+
+        X_train, X_val, y_train, y_val = train_test_split(
+            train_embeddings, train_data['label_name'], test_size=0.2, random_state=0)
+
+        print("Training KNN")
+        mlflow.autolog()
+        
+        with mlflow.start_run():    
+            knn = KNeighborsClassifier(n_neighbors=5, weights='distance', metric='cosine')
+            knn.fit(X_train, y_train)
+            y_pred = knn.predict(X_val)
+            print(classification_report(y_val, y_pred))
+
+        self.model = knn
+        self.predict("I still haven't recieved my card, when will it be ready?")
+
+        return self.model
+
+    def load_dataset(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
         dataset =  load_dataset("PolyAI/banking77", revision="main") # taking the data from the main branch
     
         train_data = pd.DataFrame(dataset['train'])
@@ -23,7 +58,6 @@ class Pipeline:
     
     def create_embeddings(self, train_data):
         print("Encoding embeddings")
-        self.embeddings_model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
         
         train_text_lists = train_data.text.tolist()
 
@@ -31,35 +65,17 @@ class Pipeline:
 
         return train_embeddings
     
-    def train(self, train_data = None, test_data = None, train_embeddings = None):
-        if not isinstance(train_data, pd.DataFrame) or not isinstance(test_data, pd.DataFrame):
-            train_data, test_data = self.load_dataset()
-
-        
-        print("Training KNN")
-        knn = KNeighborsClassifier(n_neighbors=5, weights='distance', metric='cosine')
-
-        if not isinstance(train_embeddings, pd.DataFrame):
-            train_embeddings = self.create_embeddings(train_data)
-
-        X_train, X_val, y_train, y_val = train_test_split(
-            train_embeddings, train_data['label_name'], test_size=0.2, random_state=0)
-
-        knn.fit(X_train, y_train)
-        y_pred = knn.predict(X_val)
-        print(classification_report(y_val, y_pred))
-
-        self.model = knn
-        self.predict("I still haven't recieved my card, when will it be ready?")
-
-        # TODO
-        # Add mlflow
-
-        return self.model
     
     def predict(self, text_input):
         print(f"Prediction for {text_input}")
         print(self.model.predict(self.embeddings_model.encode(text_input).reshape(1, -1)))
+
+
+    def predict_mlflow_model(self, text_input):
+        if not self._mlflow_model:
+            self._mlflow_model = mlflow.sklearn.load_model("file:///workspaces/build-your-first-ml-pipeline-workshop/mlruns/0/acda9ccd6a9346f79167182ce832c3bb/artifacts/model")
+
+        return self._mlflow_model.predict(self.embeddings_model.encode(text_input).reshape(1, -1))
 
 
 
