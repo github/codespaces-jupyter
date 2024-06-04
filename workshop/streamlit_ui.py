@@ -7,6 +7,12 @@ st.markdown("""
 ## Task 10
 
 Call your favourite model using mlflow from withing streamlit
+            
+
+Tip: to run and visualize streamlit do:
+
+``` streamlit run workshop/streamlit_ui.py````
+        
         """)
 
 content= st.text_input("Type your query", value='I lost my card')
