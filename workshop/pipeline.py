@@ -78,7 +78,7 @@ class Pipeline:
 
     def predict_mlflow_model(self, text_input: str):
         if not self._mlflow_model:
-            model_id = 'f7803a89026846af89665631df562d9d'
+            model_id = """REPLACE WITH YOUR ID"""
             self._mlflow_model = mlflow.sklearn.load_model(f"file:///workspaces/build-your-first-ml-pipeline-workshop/mlruns/0/{model_id}/artifacts/model")
 
         return self._mlflow_model.predict(self.embeddings_model.encode(text_input).reshape(1, -1))
