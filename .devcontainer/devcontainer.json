@@ -13,8 +13,22 @@
     "vscode": {
       "extensions": [
         "ms-toolsai.jupyter",
-        "ms-python.python"
+        "ms-python.python",
+        "ms-azuretools.vscode-docker"
       ]
+    }
+  },
+  "features": {
+    "ghcr.io/rocker-org/devcontainer-features/miniforge:1": {
+      "version": "latest",
+      "variant": "Miniforge3"
+    },
+    "ghcr.io/paul-gilber/devcontainer-features/jinja2-cli-homebrew:1": {
+      "version": "latest"
+    },
+    "ghcr.io/deep-space-cartel/devcontainers-features/pip:1": {
+      "location": "/var/tmp/.venv",
+      "packages": "pre-commit"
     }
   }
 }
