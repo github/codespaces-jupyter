@@ -1,6 +1,17 @@
-ipywidgets==8.1.2
-matplotlib==3.8.4
-pandas==2.2.2
-torch==2.3.0
-torchvision==0.18.0
-tqdm==4.66.4
+# requirements file
+# note which revision of python, for example 3.9.6
+# in this file, insert all the pip install needs, include revision
+
+#python 3.10.14
+numpy==1.26.4
+together==1.2.0
+python-dotenv~=1.0.1
+tiktoken==0.7.0
+blobfile==3.0.0
+torch==2.4.0
+matplotlib==3.9.2
+wolframalpha==5.1.3
+tavily-python==0.5.0
+llama-stack==0.0.36
+llama-stack-client==0.0.35
+gradio==4.43.0
