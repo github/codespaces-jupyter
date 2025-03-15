@@ -14,7 +14,8 @@
       "extensions": [
         "ms-toolsai.jupyter",
         "ms-python.python",
-        "cezaraugusto.vscode-chrome-extesion-manifest-json-schema"
+        "cezaraugusto.vscode-chrome-extesion-manifest-json-schema",
+        "mindaro-dev.file-downloader"
       ]
     }
   }
