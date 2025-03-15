@@ -13,7 +13,8 @@
     "vscode": {
       "extensions": [
         "ms-toolsai.jupyter",
-        "ms-python.python"
+        "ms-python.python",
+        "cezaraugusto.vscode-chrome-extesion-manifest-json-schema"
       ]
     }
   }
