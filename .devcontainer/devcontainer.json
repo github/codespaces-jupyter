@@ -4,7 +4,12 @@
     "cpus": 4
   },
   "waitFor": "onCreateCommand",
-  "updateContentCommand": "python3 -m pip install -r requirements.txt",
+  "updateContentCommand": "python3 -m pip install -r requirements.txt",ipywidgets==8.1.2
+matplotlib==3.8.4
+pandas==2.2.2
+torch==2.7.1
+torchvision==0.21.0
+tqdm==4.66.4
   "postCreateCommand": "",
   "customizations": {
     "codespaces": {
