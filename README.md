@@ -1,7 +1,48 @@
-# GitHub Codespaces ♥️ Jupyter Notebooks
+import gradio as gr
 
-Welcome to your shiny new codespace! We've got everything fired up and running for you to explore Python and Jupyter notebooks.
+def calculate(num1, num2, operation):
+    try:
+        num1 = float(num1)
+        num2 = float(num2)
 
-You've got a blank canvas to work on from a git perspective as well. There's a single initial commit with what you're seeing right now - where you go from here is up to you!
+        if operation == "Add":
+            return num1 + num2
+        elif operation == "Subtract":
+            return num1 - num2
+        elif operation == "Multiply":
+            return num1 * num2
+        elif operation == "Divide":
+            if num2 == 0:
+                return "Error: Division by zero"
+            return num1 / num2
+        else:
+            return "Invalid operation"
 
-Everything you do here is contained within this one codespace. There is no repository on GitHub yet. If and when you’re ready you can click "Publish Branch" and we’ll create your repository and push up your project. If you were just exploring then and have no further need for this code then you can simply delete your codespace and it's gone forever.
+    except ValueError:
+        return "Error: Please enter valid numbers"
+
+
+with gr.Blocks() as demo:
+    gr.Markdown("# 🧮 Simple Calculator")
+
+    with gr.Row():
+        num1 = gr.Textbox(label="First Number")
+        num2 = gr.Textbox(label="Second Number")
+
+    operation = gr.Dropdown(
+        ["Add", "Subtract", "Multiply", "Divide"],
+        label="Operation"
+    )
+
+    result = gr.Textbox(label="Result")
+
+    btn = gr.Button("Calculate")
+
+    btn.click(
+        fn=calculate,
+        inputs=[num1, num2, operation],
+        outputs=result
+    )
+
+if __name__ == "__main__":
+    demo.launch()
