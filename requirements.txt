@@ -1,4 +1,4 @@
-ipywidgets==8.1.2
+ipywidgets==8.1.8
 matplotlib==3.8.4
 pandas==2.2.2
 torch==2.8.0
@@ -7,3 +7,4 @@ tqdm==4.66.4
 pillow>=12.1.1
 fonttools>=4.60.0
 filelock>=3.20.3
+Pygments>=2.20.0
