@@ -103,4 +103,4 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
     demo.load(get_plot, inputs=[beta_slider, lambda_slider], outputs=plot_output)
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    demo.launch(server_name="0.0.0.0", server_port=7860, share=True)

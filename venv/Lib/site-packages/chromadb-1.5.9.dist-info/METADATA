@@ -1,0 +1,125 @@
+Metadata-Version: 2.4
+Name: chromadb
+Version: 1.5.9
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Requires-Dist: build>=1.0.3
+Requires-Dist: pydantic>=2.0
+Requires-Dist: pydantic-settings>=2.0
+Requires-Dist: pybase64>=1.4.1
+Requires-Dist: uvicorn[standard]>=0.18.3
+Requires-Dist: numpy>=1.22.5
+Requires-Dist: typing-extensions>=4.5.0
+Requires-Dist: onnxruntime>=1.14.1
+Requires-Dist: opentelemetry-api>=1.2.0
+Requires-Dist: opentelemetry-exporter-otlp-proto-grpc>=1.2.0
+Requires-Dist: opentelemetry-sdk>=1.2.0
+Requires-Dist: tokenizers>=0.13.2
+Requires-Dist: pypika>=0.48.9
+Requires-Dist: tqdm>=4.65.0
+Requires-Dist: overrides>=7.3.1
+Requires-Dist: importlib-resources
+Requires-Dist: graphlib-backport>=1.0.3 ; python_full_version < '3.9'
+Requires-Dist: grpcio>=1.58.0
+Requires-Dist: bcrypt>=4.0.1
+Requires-Dist: typer>=0.9.0
+Requires-Dist: kubernetes>=28.1.0
+Requires-Dist: tenacity>=8.2.3
+Requires-Dist: pyyaml>=6.0.0
+Requires-Dist: mmh3>=4.0.1
+Requires-Dist: orjson>=3.9.12
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: rich>=10.11.0
+Requires-Dist: jsonschema>=4.19.0
+Requires-Dist: chroma-hnswlib==0.7.6 ; extra == 'dev'
+Requires-Dist: fastapi>=0.115.9 ; extra == 'dev'
+Requires-Dist: opentelemetry-instrumentation-fastapi>=0.41b0 ; extra == 'dev'
+Provides-Extra: dev
+License-File: LICENSE
+Summary: Chroma.
+Author-email: Jeff Huber <jeff@trychroma.com>, Anton Troynikov <anton@trychroma.com>
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+Project-URL: Bug Tracker, https://github.com/chroma-core/chroma/issues
+Project-URL: Homepage, https://github.com/chroma-core/chroma
+
+![Chroma](./docs/assets/chroma-wordmark-color.png#gh-light-mode-only)
+![Chroma](./docs/assets/chroma-wordmark-white.png#gh-dark-mode-only)
+
+<p align="center">
+    <b>Chroma - the open-source data infrastructure for AI</b>. <br />
+</p>
+
+<p align="center">
+  <a href="https://discord.gg/MMeYNTmh3x" target="_blank">
+      <img src="https://img.shields.io/discord/1073293645303795742?cacheSeconds=3600" alt="Discord">
+  </a> |
+  <a href="https://github.com/chroma-core/chroma/blob/master/LICENSE" target="_blank">
+      <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License">
+  </a> |
+  <a href="https://docs.trychroma.com/" target="_blank">
+      Docs
+  </a> |
+  <a href="https://www.trychroma.com/" target="_blank">
+      Homepage
+  </a>
+</p>
+
+```bash
+pip install chromadb # python client
+# for javascript, npm install chromadb!
+# for client-server mode, chroma run --path /chroma_db_path
+```
+
+## Chroma Cloud
+
+Our hosted service, Chroma Cloud, powers serverless vector, hybrid, and full-text search. It's extremely fast, cost-effective, scalable and painless. Create a DB and try it out in under 30 seconds with $5 of free credits.
+
+[Get started with Chroma Cloud](https://trychroma.com/signup)
+
+## API
+
+The core API is only 4 functions (run our [💡 Google Colab](https://colab.research.google.com/drive/1QEzFyqnoFxq7LUGyP1vzR4iLt9PpCDXv?usp=sharing)):
+
+```python
+import chromadb
+# setup Chroma in-memory, for easy prototyping. Can add persistence easily!
+client = chromadb.Client()
+
+# Create collection. get_collection, get_or_create_collection, delete_collection also available!
+collection = client.create_collection("all-my-documents")
+
+# Add docs to the collection. Can also update and delete. Row-based API coming soon!
+collection.add(
+    documents=["This is document1", "This is document2"], # we handle tokenization, embedding, and indexing automatically. You can skip that and add your own embeddings as well
+    metadatas=[{"source": "notion"}, {"source": "google-docs"}], # filter on these!
+    ids=["doc1", "doc2"], # unique for each doc
+)
+
+# Query/search 2 most similar results. You can also .get by id
+results = collection.query(
+    query_texts=["This is a query document"],
+    n_results=2,
+    # where={"metadata_field": "is_equal_to_this"}, # optional filter
+    # where_document={"$contains":"search_string"}  # optional filter
+)
+```
+
+Learn about all features on our [Docs](https://docs.trychroma.com)
+
+## Get involved
+
+Chroma is a rapidly developing project. We welcome PR contributors and ideas for how to improve the project.
+- [Join the conversation on Discord](https://discord.com/invite/chromadb) - `#contributing` channel
+- [Review the 🛣️ Roadmap and contribute your ideas](https://docs.trychroma.com/docs/overview/oss#roadmap)
+- [Grab an issue and open a PR](https://github.com/chroma-core/chroma/issues) - [`Good first issue tag`](https://github.com/chroma-core/chroma/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+- [Read our contributing guide](https://docs.trychroma.com/docs/overview/oss#contributing)
+
+**Release Cadence**
+We currently release new tagged versions of the `pypi` and `npm` packages on Mondays. Hotfixes go out at any time during the week.
+
+## License
+
+[Apache 2.0](./LICENSE)
+

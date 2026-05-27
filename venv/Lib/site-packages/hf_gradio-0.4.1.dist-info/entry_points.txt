@@ -1,0 +1,2 @@
+[console_scripts]
+hf-gradio = hf_gradio.cli:app

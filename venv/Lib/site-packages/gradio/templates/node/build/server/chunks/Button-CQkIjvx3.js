@@ -1,0 +1,9 @@
+import './async-D55cHugf.js';
+import { a as attr, f as attr_class, g as attr_style, i as stringify } from './index-u8mz_F03.js';
+import './2-htxqz-Pd.js';
+import { c } from './Image-CuPo5pWT.js';
+
+/* empty css                                        *//* empty css                                          */function q(_,d){_.component(t=>{let{elem_id:f,elem_classes:c$1=[],visible:s,variant:m,size:g,value:u,link:h,link_target:b,icon:l,disabled:a,scale:o,min_width:n,onclick:w=()=>{},children:p}=d;h&&h.length>0?(t.push("<!--[-->"),t.push(`<a${attr("href",h)}${attr("target",b)}${attr("rel",b==="_blank"?"noopener noreferrer":void 0)}${attr("aria-disabled",a)}${attr_class(`${stringify(g)} ${stringify(m)} ${stringify(c$1.join(" "))}`,"svelte-xzq5jh",{hidden:s===false||s==="hidden",disabled:a})}${attr("id",f)}${attr_style("",{"flex-grow":o,"pointer-events":a?"none":null,width:o===0?"fit-content":null,"min-width":typeof n=="number"?`calc(min(${n}px, 100%))`:null})}>`),l?(t.push("<!--[-->"),c(t,{src:l.url,restProps:{alt:`${u} icon`,class:"button-icon"}})):t.push("<!--[!-->"),t.push("<!--]--> "),p?(t.push("<!--[-->"),p(t),t.push("<!---->")):t.push("<!--[!-->"),t.push("<!--]--></a>")):(t.push("<!--[!-->"),t.push(`<button${attr_class(`${stringify(g)} ${stringify(m)} ${stringify(c$1.join(" "))}`,"svelte-xzq5jh",{hidden:s===false||s==="hidden"})}${attr("id",f)}${attr("disabled",a,true)}${attr_style("",{"flex-grow":o,width:o===0?"fit-content":null,"min-width":typeof n=="number"?`calc(min(${n}px, 100%))`:null})}>`),l?(t.push("<!--[-->"),c(t,{restProps:{alt:`${u} icon`},class_names:[`button-icon ${u?"right-padded":""}`],src:l.url})):t.push("<!--[!-->"),t.push("<!--]--> "),p?(t.push("<!--[-->"),p(t),t.push("<!---->")):t.push("<!--[!-->"),t.push("<!--]--></button>")),t.push("<!--]-->");});}
+
+export { q };
+//# sourceMappingURL=Button-CQkIjvx3.js.map

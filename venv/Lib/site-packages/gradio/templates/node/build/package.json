@@ -1,0 +1,7 @@
+{
+  "name": "gradio-server-app",
+  "type": "module",
+  "dependencies": {
+    "http-proxy": "^1.18.1"
+  }
+}

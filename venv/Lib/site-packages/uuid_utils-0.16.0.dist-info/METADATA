@@ -1,0 +1,143 @@
+Metadata-Version: 2.4
+Name: uuid_utils
+Version: 0.16.0
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Programming Language :: Rust
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+License-File: LICENSE.md
+Summary: Fast, drop-in replacement for Python's uuid module, powered by Rust.
+Keywords: rust,uuid
+Author-email: Amin Alaee <mohammadamin.alaee@gmail.com>
+License-Expression: BSD-3-Clause
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown; charset=UTF-8; variant=GFM
+Project-URL: Documentation, https://github.com/aminalaee/uuid-utils
+Project-URL: Issues, https://github.com/aminalaee/uuid-utils/issues
+Project-URL: Source, https://github.com/aminalaee/uuid-utils
+
+# Python UUID Utils
+
+<div align="center">
+
+[![Package version](https://badge.fury.io/py/uuid-utils.svg)](https://pypi.org/project/uuid-utils/)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/uuid-utils)
+[![Supported Python versions](https://img.shields.io/pypi/pyversions/uuid-utils.svg?color=%2334D058)](https://pypi.org/project/uuid-utils)
+[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/aminalaee/uuid-utils?utm_source=badge)
+
+</div>
+
+---
+
+Fast, drop-in replacement for Python's uuid module, powered by Rust.
+
+Available UUID versions:
+
+- `uuid1` - Version 1 UUIDs using a timestamp and monotonic counter.
+- `uuid3` - Version 3 UUIDs based on the MD5 hash of some data.
+- `uuid4` - Version 4 UUIDs with random data.
+- `uuid5` - Version 5 UUIDs based on the SHA1 hash of some data.
+- `uuid6` - Version 6 UUIDs using a timestamp and monotonic counter.
+- `uuid7` - Version 7 UUIDs using a Unix timestamp ordered by time.
+- `uuid8` - Version 8 UUIDs using user-defined data.
+
+## Installation
+Using `pip`:
+```shell
+pip install uuid-utils
+```
+or, using `conda`:
+
+```shell
+conda install -c conda-forge uuid-utils
+```
+
+## Example
+
+```shell
+>>> import uuid_utils as uuid
+
+>>> # make a random UUID
+>>> uuid.uuid4()
+UUID('ffe95fcc-b818-4aca-a350-e0a35b9de6ec')
+
+>>> # make a random UUID using a Unix timestamp which is time-ordered.
+>>> uuid.uuid7()
+UUID('018afa4a-0d21-7e6c-b857-012bc678552b')
+
+>>> # make a UUID using a SHA-1 hash of a namespace UUID and a name
+>>> uuid.uuid5(uuid.NAMESPACE_DNS, 'python.org')
+UUID('886313e1-3b8a-5372-9b90-0c9aee199e5d')
+
+>>> # make a UUID using an MD5 hash of a namespace UUID and a name
+>>> uuid.uuid3(uuid.NAMESPACE_DNS, 'python.org')
+UUID('6fa459ea-ee8a-3ca4-894e-db77e160355e')
+```
+
+## Compatibility with Python UUID
+
+Some frameworks (e.g. Django) require `UUID` instances from the standard-library `uuid` module,
+not a custom subclass. Use `uuid_utils.compat` for a drop-in replacement that returns stdlib
+`uuid.UUID` instances while still outperforming the standard library.
+
+```py
+>>> import uuid_utils.compat as uuid
+
+>>> uuid.uuid4()
+UUID('ffe95fcc-b818-4aca-a350-e0a35b9de6ec')
+```
+
+## Benchmarks
+
+![Benchmarks](https://raw.githubusercontent.com/aminalaee/uuid-utils/main/docs/benchmarks.svg)
+
+```
+╭───────────────────────────────── benchdiff ──────────────────────────────────╮
+│                                                                              │
+│   Benchmark                    Min           Median          Max           × │
+│  ─────────────────────────────────────────────────────────────────────────── │
+│   uuid4()                                                                    │
+│     stdlib_uuid4            1178.260ns     1189.167ns     1260.025ns    19.2 │
+│     compat_uuid4            248.325ns      251.257ns      271.325ns     4.07 │
+│     uuid_utils_uuid4         60.212ns       61.642ns       62.068ns     1.00 │
+│   uuid7()                                                                    │
+│     stdlib_uuid7            1327.365ns     1336.479ns     1615.529ns    15.7 │
+│     compat_uuid7            277.427ns      279.572ns      286.819ns     3.30 │
+│     uuid_utils_uuid7         83.582ns       84.654ns       93.588ns     1.00 │
+│   UUID from hex                                                              │
+│     stdlib_from_hex         443.457ns      463.514ns      472.753ns     5.47 │
+│     uuid_utils_from_hex      84.256ns       84.639ns       85.301ns     1.00 │
+│   UUID from bytes                                                            │
+│     stdlib_from_bytes       398.878ns      400.830ns      403.030ns     3.80 │
+│     uuid_utils_from_byt…    103.698ns      105.417ns      106.426ns     1.00 │
+│                                                                              │
+│ ──────────────────────────────────────────────────────────────────────────── │
+│   Python      3.14.4                                                         │
+│   Platform    macOS-26.3.1                                                   │
+│   CPU         Apple M3 Pro                                                   │
+│   Rounds      10 × 100,000 calls                                             │
+│   Date        2026-05-13 21:24:22                                            │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+## How to develop locally
+
+```shell
+make build
+make test
+```
+
+Or:
+
+```shell
+maturin develop --release
+```
+
