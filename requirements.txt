@@ -8,3 +8,7 @@ pillow>=12.1.1
 fonttools>=4.60.0
 filelock>=3.20.3
 Pygments==2.20.0
+seaborn>=0.12.0
+yfinance>=0.2.31
+streamlit>=1.28.0
+numpy>=1.24.0
