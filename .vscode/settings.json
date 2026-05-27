@@ -1,3 +1,9 @@
 {
-    "pdf-preview.default.sidebar": true
+    "pdf-preview.default.sidebar": true,
+    "google.datacloud.starredProjects": [
+        "quantum-relativistic-engine"
+    ],
+    "google.datacloud.expandMenus": true,
+    "google.datacloud.executeCellToolForNotebookMCP": true,
+    "google.cloud.billingQuotaProject": "quantum-relativistic-engine"
 }

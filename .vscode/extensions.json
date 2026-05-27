@@ -2,6 +2,7 @@
     "recommendations": [
         "ms-python.python",
         "tomoki1207.pdf",
-        "googlecloudtools.cloudcode"
+        "googlecloudtools.cloudcode",
+        "googlecloudtools.datacloud"
     ]
 }
