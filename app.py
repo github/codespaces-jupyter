@@ -53,19 +53,21 @@ def chat_response(message, history, beta, lambda_cosmo):
     full_message = f"{message} (Current Engine Context: beta={beta}, lambda={lambda_cosmo})"
     
     inputs = {"messages": [HumanMessage(content=full_message)]}
-    response = "I'm analyzing the topological deformations..."
+    response = ""
     
     try:
+        # LangGraph can have multiple steps (agent -> tools -> agent)
         for output in agent_app.stream(inputs):
-            for key, value in output.items():
-                if key == "agent":
+            for node, value in output.items():
+                if node == "agent":
+                    # Capture the latest AI message from the agent node
                     last_msg = value["messages"][-1]
-                    if hasattr(last_msg, 'content'):
+                    if isinstance(last_msg, AIMessage) and last_msg.content:
                         response = last_msg.content
     except Exception as e:
         response = f"Error in agent execution: {str(e)}"
     
-    return response
+    return response if response else "The physicist is calculating the tensors... please wait."
 
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
     gr.Markdown("# 🌌 Quantum-Relativistic Financial Agent")
