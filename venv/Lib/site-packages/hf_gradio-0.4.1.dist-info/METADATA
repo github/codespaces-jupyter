@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: hf-gradio
+Version: 0.4.1
+Summary: An extension of the Hugging Face CLI for interacting with Gradio Spaces and Apps.
+Project-URL: Homepage, https://github.com/gradio-app/hf-gradio#
+License-Expression: MIT
+License-File: LICENSE
+Requires-Python: >=3.10
+Requires-Dist: gradio-client<3.0,>=2.0
+Requires-Dist: typer
+Provides-Extra: dev
+Requires-Dist: ruff; extra == 'dev'
+Requires-Dist: ty; extra == 'dev'

@@ -1,0 +1,81 @@
+Metadata-Version: 2.2
+Name: google-generativeai
+Version: 0.8.6
+Summary: Google Generative AI High level API client library and tools.
+Home-page: https://github.com/google/generative-ai-python
+Author: Google LLC
+Author-email: googleapis-packages@google.com
+License: Apache 2.0
+Platform: Posix; MacOS X; Windows
+Classifier: Development Status :: 7 - Inactive
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: Typing :: Typed
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: google-ai-generativelanguage==0.6.15
+Requires-Dist: google-api-core
+Requires-Dist: google-api-python-client
+Requires-Dist: google-auth>=2.15.0
+Requires-Dist: protobuf
+Requires-Dist: pydantic
+Requires-Dist: tqdm
+Requires-Dist: typing-extensions
+Provides-Extra: dev
+Requires-Dist: absl-py; extra == "dev"
+Requires-Dist: black; extra == "dev"
+Requires-Dist: nose2; extra == "dev"
+Requires-Dist: pandas; extra == "dev"
+Requires-Dist: pytype; extra == "dev"
+Requires-Dist: pyyaml; extra == "dev"
+Requires-Dist: Pillow; extra == "dev"
+Requires-Dist: ipython; extra == "dev"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license
+Dynamic: platform
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# [Deprecated] Google AI Python SDK for the Gemini API
+
+With Gemini 2.0, we took the chance to create a single unified SDK for all developers who want to use Google's GenAI models (Gemini, Veo, Imagen, etc). As part of that process, we took all of the feedback from this SDK and what developers like about other SDKs in the ecosystem to create the [Google Gen AI SDK](https://github.com/googleapis/python-genai). 
+
+The full migration guide from the old SDK to new SDK is available in the [Gemini API docs](https://ai.google.dev/gemini-api/docs/migrate).
+
+The Gemini API docs are fully updated to show examples of the new Google Gen AI SDK. We know how disruptive an SDK change can be and don't take this change lightly, but our goal is to create an extremely simple and clear path for developers to build with our models so it felt necessary to make this change.
+
+Thank you for building with Gemini and [let us know](https://discuss.ai.google.dev/c/gemini-api/4) if you need any help!
+
+**Please be advised that this repository is now considered legacy.** For the latest features, performance improvements, and active development, we strongly recommend migrating to the official **[Google Generative AI SDK for Python](https://github.com/googleapis/python-genai)**.
+
+**Support Plan for this Repository:**
+
+*   **Limited Maintenance:** Development is now restricted to **critical bug fixes only**. No new features will be added.
+*   **Purpose:** This limited support aims to provide stability for users while they transition to the new SDK.
+*   **End-of-Life Date:** All support for this repository ended permanently on **November 30, 2025**.
+
+We encourage all users to begin planning their migration to the [Google Generative AI SDK](https://github.com/googleapis/python-genai) to ensure continued access to the latest capabilities and support.
+
+<!-- 
+[START update]
+# With Gemini 2 we're launching a new SDK. See the following doc for details.
+# https://ai.google.dev/gemini-api/docs/migrate
+[END update]
+ -->

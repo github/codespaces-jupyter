@@ -1,0 +1,13 @@
+orjson-3.11.9.dist-info/INSTALLER,sha256=zuuue4knoyJ-UwPPXg8fezS7VCrXJQrAP7zeNuwvFQg,4
+orjson-3.11.9.dist-info/METADATA,sha256=U-ONslf2sXr5GTuxEw-Z2dEIQg3IPcE0cgVjEExGurA,43074
+orjson-3.11.9.dist-info/RECORD,,
+orjson-3.11.9.dist-info/WHEEL,sha256=qztQ23OdXtRBO3SW-Pa5eKaAgySi2gewLIEhihDaoD4,97
+orjson-3.11.9.dist-info/licenses/LICENSE-APACHE,sha256=fP1zjFPWHHnwfjSPYiv3cHyQhCNwVNN_vgd4inX1iBw,11048
+orjson-3.11.9.dist-info/licenses/LICENSE-MIT,sha256=NlFq79yExdWh50hUJZE6ItvaaesZMMXoTWrklytRlLk,1046
+orjson-3.11.9.dist-info/licenses/LICENSE-MPL-2.0,sha256=kwPqHPvwSZRWUmaAiddT-xp-Hy5SxoBhXD0s6nUVwRg,17100
+orjson-3.11.9.dist-info/sboms/orjson.cyclonedx.json,sha256=kL5w0lHZb-zU_Vdajif_o0pBmX0vud4N7Yew7keuLLk,33099
+orjson/__init__.py,sha256=Z45X7GrgfAwam7kmKuCZzPGa0jrEp2xr1kD5JRBLpcQ,725
+orjson/__init__.pyi,sha256=CM5fFe4XUtbHLx5S9Dai_OHgg19xe0qK4u4981Zxd0g,912
+orjson/__pycache__/__init__.cpython-310.pyc,,
+orjson/orjson.cp310-win_amd64.pyd,sha256=1z33vDEfbfv2E0RoMN127Szy2nkmkpa37ZpMq8QE4q8,223744
+orjson/py.typed,sha256=47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU,0

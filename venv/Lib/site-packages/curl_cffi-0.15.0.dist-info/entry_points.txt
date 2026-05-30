@@ -1,0 +1,2 @@
+[console_scripts]
+curl-cffi = curl_cffi.cli:main

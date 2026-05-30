@@ -1,0 +1,240 @@
+"""**Chat Models** are a variation on language models.
+
+While Chat Models use language models under the hood, the interface they expose is a bit
+different. Rather than expose a "text in, text out" API, they expose an interface where
+"chat messages" are the inputs and outputs.
+"""
+
+import importlib
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from langchain_community.chat_models.anyscale import (
+        ChatAnyscale,
+    )
+    from langchain_community.chat_models.baichuan import (
+        ChatBaichuan,
+    )
+    from langchain_community.chat_models.baidu_qianfan_endpoint import (
+        QianfanChatEndpoint,
+    )
+    from langchain_community.chat_models.coze import (
+        ChatCoze,
+    )
+    from langchain_community.chat_models.deepinfra import (
+        ChatDeepInfra,
+    )
+    from langchain_community.chat_models.edenai import ChatEdenAI
+    from langchain_community.chat_models.ernie import (
+        ErnieBotChat,
+    )
+    from langchain_community.chat_models.everlyai import (
+        ChatEverlyAI,
+    )
+    from langchain_community.chat_models.fake import (
+        FakeListChatModel,
+    )
+    from langchain_community.chat_models.friendli import (
+        ChatFriendli,
+    )
+    from langchain_community.chat_models.google_palm import (
+        ChatGooglePalm,
+    )
+    from langchain_community.chat_models.gpt_router import (
+        GPTRouter,
+    )
+    from langchain_community.chat_models.human import (
+        HumanInputChatModel,
+    )
+    from langchain_community.chat_models.hunyuan import (
+        ChatHunyuan,
+    )
+    from langchain_community.chat_models.javelin_ai_gateway import (
+        ChatJavelinAIGateway,
+    )
+    from langchain_community.chat_models.jinachat import (
+        JinaChat,
+    )
+    from langchain_community.chat_models.kinetica import (
+        ChatKinetica,
+    )
+    from langchain_community.chat_models.konko import (
+        ChatKonko,
+    )
+    from langchain_community.chat_models.llama_edge import (
+        LlamaEdgeChatService,
+    )
+    from langchain_community.chat_models.llamacpp import ChatLlamaCpp
+    from langchain_community.chat_models.maritalk import (
+        ChatMaritalk,
+    )
+    from langchain_community.chat_models.minimax import (
+        MiniMaxChat,
+    )
+    from langchain_community.chat_models.mlflow import (
+        ChatMlflow,
+    )
+    from langchain_community.chat_models.mlflow_ai_gateway import (
+        ChatMLflowAIGateway,
+    )
+    from langchain_community.chat_models.mlx import (
+        ChatMLX,
+    )
+    from langchain_community.chat_models.moonshot import (
+        MoonshotChat,
+    )
+    from langchain_community.chat_models.naver import (
+        ChatClovaX,
+    )
+    from langchain_community.chat_models.oci_data_science import (
+        ChatOCIModelDeployment,
+        ChatOCIModelDeploymentTGI,
+        ChatOCIModelDeploymentVLLM,
+    )
+    from langchain_community.chat_models.oci_generative_ai import (
+        ChatOCIGenAI,  # noqa: F401
+    )
+    from langchain_community.chat_models.octoai import ChatOctoAI
+    from langchain_community.chat_models.outlines import ChatOutlines
+    from langchain_community.chat_models.pai_eas_endpoint import (
+        PaiEasChatEndpoint,
+    )
+    from langchain_community.chat_models.premai import (
+        ChatPremAI,
+    )
+    from langchain_community.chat_models.promptlayer_openai import (
+        PromptLayerChatOpenAI,
+    )
+    from langchain_community.chat_models.reka import (
+        ChatReka,
+    )
+    from langchain_community.chat_models.snowflake import (
+        ChatSnowflakeCortex,
+    )
+    from langchain_community.chat_models.sparkllm import (
+        ChatSparkLLM,
+    )
+    from langchain_community.chat_models.symblai_nebula import ChatNebula
+    from langchain_community.chat_models.tongyi import (
+        ChatTongyi,
+    )
+    from langchain_community.chat_models.volcengine_maas import (
+        VolcEngineMaasChat,
+    )
+    from langchain_community.chat_models.yandex import (
+        ChatYandexGPT,
+    )
+    from langchain_community.chat_models.yi import (
+        ChatYi,
+    )
+    from langchain_community.chat_models.yuan2 import (
+        ChatYuan2,
+    )
+    from langchain_community.chat_models.zhipuai import (
+        ChatZhipuAI,
+    )
+__all__ = [
+    "ChatAnyscale",
+    "ChatBaichuan",
+    "ChatClovaX",
+    "ChatCoze",
+    "ChatOctoAI",
+    "ChatDeepInfra",
+    "ChatEdenAI",
+    "ChatEverlyAI",
+    "ChatFriendli",
+    "ChatGooglePalm",
+    "ChatHunyuan",
+    "ChatJavelinAIGateway",
+    "ChatKinetica",
+    "ChatKonko",
+    "ChatMLX",
+    "ChatMLflowAIGateway",
+    "ChatMaritalk",
+    "ChatMlflow",
+    "ChatNebula",
+    "ChatOCIGenAI",
+    "ChatOCIModelDeployment",
+    "ChatOCIModelDeploymentVLLM",
+    "ChatOCIModelDeploymentTGI",
+    "ChatOutlines",
+    "ChatReka",
+    "ChatPremAI",
+    "ChatSparkLLM",
+    "ChatSnowflakeCortex",
+    "ChatTongyi",
+    "ChatYandexGPT",
+    "ChatYuan2",
+    "ChatZhipuAI",
+    "ChatLlamaCpp",
+    "ErnieBotChat",
+    "FakeListChatModel",
+    "GPTRouter",
+    "HumanInputChatModel",
+    "JinaChat",
+    "LlamaEdgeChatService",
+    "MiniMaxChat",
+    "MoonshotChat",
+    "PaiEasChatEndpoint",
+    "PromptLayerChatOpenAI",
+    "QianfanChatEndpoint",
+    "VolcEngineMaasChat",
+    "ChatYi",
+]
+
+
+_module_lookup = {
+    "ChatAnyscale": "langchain_community.chat_models.anyscale",
+    "ChatBaichuan": "langchain_community.chat_models.baichuan",
+    "ChatClovaX": "langchain_community.chat_models.naver",
+    "ChatCoze": "langchain_community.chat_models.coze",
+    "ChatDeepInfra": "langchain_community.chat_models.deepinfra",
+    "ChatEverlyAI": "langchain_community.chat_models.everlyai",
+    "ChatEdenAI": "langchain_community.chat_models.edenai",
+    "ChatFriendli": "langchain_community.chat_models.friendli",
+    "ChatGooglePalm": "langchain_community.chat_models.google_palm",
+    "ChatHunyuan": "langchain_community.chat_models.hunyuan",
+    "ChatJavelinAIGateway": "langchain_community.chat_models.javelin_ai_gateway",
+    "ChatKinetica": "langchain_community.chat_models.kinetica",
+    "ChatKonko": "langchain_community.chat_models.konko",
+    "ChatMLflowAIGateway": "langchain_community.chat_models.mlflow_ai_gateway",
+    "ChatMLX": "langchain_community.chat_models.mlx",
+    "ChatMaritalk": "langchain_community.chat_models.maritalk",
+    "ChatMlflow": "langchain_community.chat_models.mlflow",
+    "ChatNebula": "langchain_community.chat_models.symblai_nebula",
+    "ChatOctoAI": "langchain_community.chat_models.octoai",
+    "ChatOCIGenAI": "langchain_community.chat_models.oci_generative_ai",
+    "ChatOCIModelDeployment": "langchain_community.chat_models.oci_data_science",
+    "ChatOCIModelDeploymentVLLM": "langchain_community.chat_models.oci_data_science",
+    "ChatOCIModelDeploymentTGI": "langchain_community.chat_models.oci_data_science",
+    "ChatOutlines": "langchain_community.chat_models.outlines",
+    "ChatReka": "langchain_community.chat_models.reka",
+    "ChatSnowflakeCortex": "langchain_community.chat_models.snowflake",
+    "ChatSparkLLM": "langchain_community.chat_models.sparkllm",
+    "ChatTongyi": "langchain_community.chat_models.tongyi",
+    "ChatYandexGPT": "langchain_community.chat_models.yandex",
+    "ChatYuan2": "langchain_community.chat_models.yuan2",
+    "ChatZhipuAI": "langchain_community.chat_models.zhipuai",
+    "ErnieBotChat": "langchain_community.chat_models.ernie",
+    "FakeListChatModel": "langchain_community.chat_models.fake",
+    "GPTRouter": "langchain_community.chat_models.gpt_router",
+    "HumanInputChatModel": "langchain_community.chat_models.human",
+    "JinaChat": "langchain_community.chat_models.jinachat",
+    "LlamaEdgeChatService": "langchain_community.chat_models.llama_edge",
+    "MiniMaxChat": "langchain_community.chat_models.minimax",
+    "MoonshotChat": "langchain_community.chat_models.moonshot",
+    "PaiEasChatEndpoint": "langchain_community.chat_models.pai_eas_endpoint",
+    "PromptLayerChatOpenAI": "langchain_community.chat_models.promptlayer_openai",
+    "QianfanChatEndpoint": "langchain_community.chat_models.baidu_qianfan_endpoint",
+    "VolcEngineMaasChat": "langchain_community.chat_models.volcengine_maas",
+    "ChatPremAI": "langchain_community.chat_models.premai",
+    "ChatLlamaCpp": "langchain_community.chat_models.llamacpp",
+    "ChatYi": "langchain_community.chat_models.yi",
+}
+
+
+def __getattr__(name: str) -> Any:
+    if name in _module_lookup:
+        module = importlib.import_module(_module_lookup[name])
+        return getattr(module, name)
+    raise AttributeError(f"module {__name__} has no attribute {name}")

@@ -1,0 +1,7 @@
+import{D as l,$,ag as w,ah as b}from"./index-0BmjH1qd.js";var _="font-weight: bold",m="font-weight: normal";function u(t){l?console.warn(`%c[svelte] state_snapshot_uncloneable
+%c${t?`The following properties cannot be cloned with \`$state.snapshot\` — the return value contains the originals:
+
+${t}`:"Value cannot be cloned with `$state.snapshot` — the original value was returned"}
+https://svelte.dev/e/state_snapshot_uncloneable`,_,m):console.warn("https://svelte.dev/e/state_snapshot_uncloneable")}const p=[];function M(t,s=!1,r=!1){if(l&&!s){const n=[],f=c(t,new Map,"",n,null,r);if(n.length===1&&n[0]==="")u();else if(n.length>0){const i=n.length>10?n.slice(0,7):n.slice(0,10),a=n.length-i.length;let e=i.map(o=>`- <value>${o}`).join(`
+`);a>0&&(e+=`
+- ...and ${a} more`),u(e)}return f}return c(t,new Map,"",p,null,r)}function c(t,s,r,n,f=null,i=!1){if(typeof t=="object"&&t!==null){var a=s.get(t);if(a!==void 0)return a;if(t instanceof Map)return new Map(t);if(t instanceof Set)return new Set(t);if($(t)){var e=Array(t.length);s.set(t,e),f!==null&&s.set(f,e);for(var o=0;o<t.length;o+=1){var g=t[o];o in t&&(e[o]=c(g,s,l?`${r}[${o}]`:r,n,null,i))}return e}if(w(t)===b){e={},s.set(t,e),f!==null&&s.set(f,e);for(var h in t)e[h]=c(t[h],s,l?`${r}.${h}`:r,n,null,i);return e}if(t instanceof Date)return structuredClone(t);if(typeof t.toJSON=="function"&&!i)return c(t.toJSON(),s,l?`${r}.toJSON()`:r,n,t)}if(t instanceof EventTarget)return t;try{return structuredClone(t)}catch{return l&&n.push(r),t}}export{M as s};

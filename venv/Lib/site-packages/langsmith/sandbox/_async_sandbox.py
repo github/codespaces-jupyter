@@ -1,0 +1,734 @@
+"""AsyncSandbox class for async sandbox operations."""
+
+from __future__ import annotations
+
+import asyncio
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union, overload
+
+import httpx
+
+from langsmith.sandbox._exceptions import (
+    DataplaneNotConfiguredError,
+    ResourceNotFoundError,
+    SandboxConnectionError,
+    SandboxNotReadyError,
+)
+from langsmith.sandbox._helpers import handle_sandbox_http_error
+from langsmith.sandbox._models import (
+    AsyncCommandHandle,
+    AsyncServiceURL,
+    ExecutionResult,
+    Snapshot,
+)
+from langsmith.sandbox._tunnel import AsyncTunnel
+
+if TYPE_CHECKING:
+    from langsmith.sandbox._async_client import AsyncSandboxClient
+
+
+RequestHeaders = Optional[Mapping[str, str]]
+
+
+@dataclass
+class AsyncSandbox:
+    """Represents an active sandbox for running commands and file operations async.
+
+    This class is typically obtained from AsyncSandboxClient.sandbox() and supports
+    the async context manager protocol for automatic cleanup.
+
+    Attributes:
+        name: Display name (can be updated).
+        dataplane_url: URL for data plane operations (file I/O, command execution).
+            Only functional when status is "ready".
+        id: Unique identifier (UUID). Remains constant even if name changes.
+            May be None for resources created before ID support was added.
+        status: Sandbox lifecycle status. One of "provisioning", "ready",
+            "failed", "stopped".
+        status_message: Human-readable details when status is "failed", None otherwise.
+        created_at: Timestamp when the sandbox was created.
+        updated_at: Timestamp when the sandbox was last updated.
+        idle_ttl_seconds: Idle timeout TTL in seconds (``0`` means disabled).
+            Newly-created sandboxes receive a server-side default of ``600``
+            seconds (10 minutes) when the caller did not set ``idle_ttl_seconds``
+            explicitly. The launcher stops the sandbox after this many idle
+            seconds; deletion is anchored to ``stopped_at`` and controlled by
+            ``delete_after_stop_seconds`` (see below).
+        delete_after_stop_seconds: Seconds after a sandbox enters the
+            ``stopped`` state before it (and its filesystem clone) are
+            permanently deleted. ``0`` disables stop-anchored deletion;
+            ``None`` falls back to the server default.
+        stopped_at: Timestamp when the sandbox transitioned to ``stopped``,
+            or ``None`` while running. The deletion deadline is
+            ``stopped_at + delete_after_stop_seconds``.
+        snapshot_id: Snapshot ID used to create this sandbox.
+        vcpus: Number of vCPUs allocated.
+        mem_bytes: Memory allocation in bytes.
+        fs_capacity_bytes: Root filesystem capacity in bytes.
+
+    Example:
+        async with await client.sandbox(
+            snapshot_id="<snapshot-uuid>"
+        ) as sandbox:
+            result = await sandbox.run("python --version")
+            print(result.stdout)
+    """
+
+    # Data fields (from API response)
+    name: str
+    dataplane_url: Optional[str] = None
+    id: Optional[str] = None
+    status: str = "ready"
+    status_message: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    idle_ttl_seconds: Optional[int] = None
+    delete_after_stop_seconds: Optional[int] = None
+    stopped_at: Optional[str] = None
+    snapshot_id: Optional[str] = None
+    vcpus: Optional[int] = None
+    mem_bytes: Optional[int] = None
+    fs_capacity_bytes: Optional[int] = None
+
+    # Internal fields (not from API)
+    _client: AsyncSandboxClient = field(repr=False, default=None)  # type: ignore
+    _auto_delete: bool = field(repr=False, default=True)
+
+    @classmethod
+    def from_dict(
+        cls,
+        data: dict[str, Any],
+        client: AsyncSandboxClient,
+        auto_delete: bool = True,
+    ) -> AsyncSandbox:
+        """Create an AsyncSandbox from API response dict.
+
+        Args:
+            data: API response dictionary containing sandbox data.
+            client: Parent AsyncSandboxClient for operations.
+            auto_delete: Whether to delete the sandbox on context exit.
+
+        Returns:
+            AsyncSandbox instance.
+        """
+        return cls(
+            name=data.get("name", ""),
+            dataplane_url=data.get("dataplane_url"),
+            id=data.get("id"),
+            status=data.get("status", "ready"),
+            status_message=data.get("status_message"),
+            created_at=data.get("created_at"),
+            updated_at=data.get("updated_at"),
+            idle_ttl_seconds=data.get("idle_ttl_seconds"),
+            delete_after_stop_seconds=data.get("delete_after_stop_seconds"),
+            stopped_at=data.get("stopped_at"),
+            snapshot_id=data.get("snapshot_id"),
+            vcpus=data.get("vcpus"),
+            mem_bytes=data.get("mem_bytes"),
+            fs_capacity_bytes=data.get("fs_capacity_bytes"),
+            _client=client,
+            _auto_delete=auto_delete,
+        )
+
+    async def __aenter__(self) -> AsyncSandbox:
+        """Enter async context manager."""
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[Any],
+    ) -> None:
+        """Exit async context manager, optionally deleting the sandbox."""
+        if self._auto_delete:
+            try:
+                await self._client.delete_sandbox(self.name)
+            except Exception:
+                # Don't raise on cleanup errors
+                pass
+
+    def _require_dataplane_url(self) -> str:
+        """Validate and return the dataplane URL.
+
+        Returns:
+            The dataplane URL.
+
+        Raises:
+            SandboxNotReadyError: If sandbox status is not "ready".
+            DataplaneNotConfiguredError: If dataplane_url is not configured.
+        """
+        if self.status != "ready":
+            raise SandboxNotReadyError(
+                f"Sandbox '{self.name}' is not ready (status: {self.status}). "
+                "Wait for status 'ready' before running operations."
+            )
+        if not self.dataplane_url:
+            raise DataplaneNotConfiguredError(
+                f"Sandbox '{self.name}' does not have a dataplane_url configured. "
+                "Runtime operations require a dataplane URL."
+            )
+        return self.dataplane_url
+
+    @overload
+    async def run(
+        self,
+        command: str,
+        *,
+        timeout: int = ...,
+        env: Optional[dict[str, str]] = ...,
+        cwd: Optional[str] = ...,
+        shell: str = ...,
+        on_stdout: Optional[Callable[[str], Any]] = ...,
+        on_stderr: Optional[Callable[[str], Any]] = ...,
+        idle_timeout: int = ...,
+        kill_on_disconnect: bool = ...,
+        ttl_seconds: int = ...,
+        pty: bool = ...,
+        headers: RequestHeaders = ...,
+        wait: Literal[True] = ...,
+    ) -> ExecutionResult: ...
+
+    @overload
+    async def run(
+        self,
+        command: str,
+        *,
+        timeout: int = ...,
+        env: Optional[dict[str, str]] = ...,
+        cwd: Optional[str] = ...,
+        shell: str = ...,
+        on_stdout: Optional[Callable[[str], Any]] = ...,
+        on_stderr: Optional[Callable[[str], Any]] = ...,
+        idle_timeout: int = ...,
+        kill_on_disconnect: bool = ...,
+        ttl_seconds: int = ...,
+        pty: bool = ...,
+        headers: RequestHeaders = ...,
+        wait: Literal[False],
+    ) -> AsyncCommandHandle: ...
+
+    async def run(
+        self,
+        command: str,
+        *,
+        timeout: int = 60,
+        env: Optional[dict[str, str]] = None,
+        cwd: Optional[str] = None,
+        shell: str = "/bin/bash",
+        on_stdout: Optional[Callable[[str], Any]] = None,
+        on_stderr: Optional[Callable[[str], Any]] = None,
+        idle_timeout: int = 300,
+        kill_on_disconnect: bool = False,
+        ttl_seconds: int = 600,
+        pty: bool = False,
+        headers: RequestHeaders = None,
+        wait: bool = True,
+    ) -> Union[ExecutionResult, AsyncCommandHandle]:
+        """Execute a command in the sandbox asynchronously.
+
+        Args:
+            command: Shell command to execute.
+            timeout: Command timeout in seconds.
+            env: Environment variables to set for the command.
+            cwd: Working directory for command execution. If None, uses sandbox default.
+            shell: Shell to use for command execution. Defaults to "/bin/bash".
+            on_stdout: Callback invoked with each stdout chunk as it arrives.
+                Blocks until the command completes and returns ExecutionResult.
+                Cannot be combined with wait=False.
+            on_stderr: Callback invoked with each stderr chunk as it arrives.
+                Blocks until the command completes and returns ExecutionResult.
+                Cannot be combined with wait=False.
+            idle_timeout: Idle timeout in seconds. If the command has no
+                connected clients for this duration, it is killed. Defaults
+                to 300 (5 minutes). Set to -1 for no idle timeout.
+                Only applies to WebSocket execution.
+            kill_on_disconnect: If True, kill the command immediately when
+                the last client disconnects. Defaults to False (command
+                continues running and can be reconnected to).
+            ttl_seconds: How long (in seconds) a finished command's session
+                is kept for reconnection. Defaults to 600 (10 minutes).
+                Set to -1 to keep indefinitely.
+            pty: If True, allocate a pseudo-terminal for the command.
+                Useful for commands that require a TTY (e.g., interactive
+                programs, commands that use terminal control codes).
+                Defaults to False.
+            wait: If True (default), block until the command completes and
+                return ExecutionResult. If False, return an
+                AsyncCommandHandle immediately for streaming output,
+                kill, stdin input, and reconnection. Cannot be combined
+                with on_stdout/on_stderr callbacks.
+
+        Returns:
+            ExecutionResult when wait=True (default).
+            AsyncCommandHandle when wait=False.
+
+        Raises:
+            ValueError: If wait=False is combined with callbacks.
+            DataplaneNotConfiguredError: If dataplane_url is not configured.
+            SandboxOperationError: If command execution fails.
+            CommandTimeoutError: If command exceeds its timeout.
+            SandboxConnectionError: If connection to sandbox fails after retries.
+            SandboxNotReadyError: If sandbox is not ready.
+            SandboxClientError: For other errors.
+        """
+        if not wait and (on_stdout or on_stderr):
+            raise ValueError(
+                "Cannot combine wait=False with on_stdout/on_stderr callbacks. "
+                "Use wait=False and iterate the CommandHandle, or use callbacks."
+            )
+
+        self._require_dataplane_url()
+
+        use_ws = not wait or on_stdout or on_stderr
+        if use_ws:
+            return await self._run_ws(
+                command,
+                timeout=timeout,
+                env=env,
+                cwd=cwd,
+                shell=shell,
+                wait=wait,
+                on_stdout=on_stdout,
+                on_stderr=on_stderr,
+                idle_timeout=idle_timeout,
+                kill_on_disconnect=kill_on_disconnect,
+                ttl_seconds=ttl_seconds,
+                pty=pty,
+                headers=headers,
+            )
+
+        # Catch broad exceptions so that unexpected WS failures (e.g. version
+        # incompatibilities) don't break users who don't need WS features.
+        try:
+            return await self._run_ws(
+                command,
+                timeout=timeout,
+                env=env,
+                cwd=cwd,
+                shell=shell,
+                wait=True,
+                on_stdout=None,
+                on_stderr=None,
+                idle_timeout=idle_timeout,
+                kill_on_disconnect=kill_on_disconnect,
+                ttl_seconds=ttl_seconds,
+                pty=pty,
+                headers=headers,
+            )
+        except (SandboxConnectionError, ImportError, OSError, TypeError):
+            return await self._run_http(
+                command,
+                timeout=timeout,
+                env=env,
+                cwd=cwd,
+                shell=shell,
+                headers=headers,
+            )
+
+    async def _run_ws(
+        self,
+        command: str,
+        *,
+        timeout: int,
+        env: Optional[dict[str, str]],
+        cwd: Optional[str],
+        shell: str,
+        wait: bool,
+        on_stdout: Optional[Callable[[str], Any]],
+        on_stderr: Optional[Callable[[str], Any]],
+        idle_timeout: int = 300,
+        kill_on_disconnect: bool = False,
+        ttl_seconds: int = 600,
+        pty: bool = False,
+        headers: RequestHeaders = None,
+    ) -> Union[ExecutionResult, AsyncCommandHandle]:
+        """Execute via WebSocket /execute/ws."""
+        from langsmith.sandbox._ws_execute import run_ws_stream_async
+
+        dataplane_url = self._require_dataplane_url()
+        api_key = self._client._api_key
+
+        ws_kwargs: dict[str, Any] = {
+            "timeout": timeout,
+            "env": env,
+            "cwd": cwd,
+            "shell": shell,
+            "on_stdout": on_stdout,
+            "on_stderr": on_stderr,
+            "idle_timeout": idle_timeout,
+            "kill_on_disconnect": kill_on_disconnect,
+            "ttl_seconds": ttl_seconds,
+            "pty": pty,
+        }
+        merged = self._client._ws_default_headers(headers)
+        if merged:
+            ws_kwargs["headers"] = merged
+
+        msg_stream, control = await run_ws_stream_async(
+            dataplane_url,
+            api_key,
+            command,
+            **ws_kwargs,
+        )
+
+        handle = AsyncCommandHandle(msg_stream, control, self)
+        await handle._ensure_started()
+
+        if not wait:
+            return handle
+
+        return await handle.result
+
+    async def _run_http(
+        self,
+        command: str,
+        *,
+        timeout: int,
+        env: Optional[dict[str, str]],
+        cwd: Optional[str],
+        shell: str,
+        headers: RequestHeaders,
+    ) -> ExecutionResult:
+        """Execute via HTTP POST /execute (existing implementation)."""
+        dataplane_url = self._require_dataplane_url()
+        url = f"{dataplane_url}/execute"
+        payload: dict[str, Any] = {
+            "command": command,
+            "timeout": timeout,
+            "shell": shell,
+        }
+        if env is not None:
+            payload["env"] = env
+        if cwd is not None:
+            payload["cwd"] = cwd
+
+        try:
+            response = await self._client._http.post(
+                url,
+                json=payload,
+                timeout=timeout + 10,
+                headers=self._client._request_headers(headers),
+            )
+            response.raise_for_status()
+            data = response.json()
+            return ExecutionResult(
+                stdout=data.get("stdout", ""),
+                stderr=data.get("stderr", ""),
+                exit_code=data.get("exit_code", -1),
+            )
+        except httpx.HTTPStatusError as e:
+            handle_sandbox_http_error(e)
+            raise  # pragma: no cover
+
+    async def reconnect(
+        self,
+        command_id: str,
+        *,
+        stdout_offset: int = 0,
+        stderr_offset: int = 0,
+        headers: RequestHeaders = None,
+    ) -> AsyncCommandHandle:
+        """Reconnect to a running or recently-finished command.
+
+        Resumes output from the given byte offsets. Any output produced while
+        the client was disconnected is replayed from the server's ring buffer.
+
+        Args:
+            command_id: The command ID from handle.command_id.
+            stdout_offset: Byte offset to resume stdout from (default: 0).
+            stderr_offset: Byte offset to resume stderr from (default: 0).
+
+        Returns:
+            An AsyncCommandHandle for the command.
+
+        Raises:
+            SandboxOperationError: If command_id is not found or session expired.
+            SandboxConnectionError: If connection to sandbox fails after retries.
+        """
+        from langsmith.sandbox._ws_execute import reconnect_ws_stream_async
+
+        dataplane_url = self._require_dataplane_url()
+        api_key = self._client._api_key
+
+        reconnect_kwargs: dict[str, Any] = {
+            "stdout_offset": stdout_offset,
+            "stderr_offset": stderr_offset,
+        }
+        merged = self._client._ws_default_headers(headers)
+        if merged:
+            reconnect_kwargs["headers"] = merged
+
+        msg_stream, control = await reconnect_ws_stream_async(
+            dataplane_url,
+            api_key,
+            command_id,
+            **reconnect_kwargs,
+        )
+
+        return AsyncCommandHandle(
+            msg_stream,
+            control,
+            self,
+            command_id=command_id,
+            stdout_offset=stdout_offset,
+            stderr_offset=stderr_offset,
+        )
+
+    async def write(
+        self,
+        path: str,
+        content: Union[str, bytes],
+        *,
+        timeout: int = 60,
+        headers: RequestHeaders = None,
+    ) -> None:
+        """Write content to a file in the sandbox asynchronously.
+
+        Args:
+            path: Target file path in the sandbox.
+            content: File content (str or bytes).
+            timeout: Request timeout in seconds.
+
+        Raises:
+            DataplaneNotConfiguredError: If dataplane_url is not configured.
+            SandboxOperationError: If file write fails.
+            SandboxConnectionError: If connection to sandbox fails after retries.
+            SandboxNotReadyError: If sandbox is not ready.
+            SandboxClientError: For other errors.
+        """
+        dataplane_url = self._require_dataplane_url()
+        url = f"{dataplane_url}/upload"
+
+        # Ensure content is bytes for multipart upload
+        if isinstance(content, str):
+            content = content.encode("utf-8")
+
+        files = {"file": ("file", content)}
+
+        try:
+            response = await self._client._http.post(
+                url,
+                params={"path": path},
+                files=files,
+                timeout=timeout,
+                headers=self._client._request_headers(headers),
+            )
+            response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            handle_sandbox_http_error(e)
+
+    async def read(
+        self, path: str, *, timeout: int = 60, headers: RequestHeaders = None
+    ) -> bytes:
+        """Read a file from the sandbox asynchronously.
+
+        Args:
+            path: File path to read. Supports both absolute paths (e.g., /tmp/file.txt)
+                  and relative paths (resolved from /home/user/).
+            timeout: Request timeout in seconds.
+
+        Returns:
+            File contents as bytes.
+
+        Raises:
+            DataplaneNotConfiguredError: If dataplane_url is not configured.
+            ResourceNotFoundError: If the file doesn't exist.
+            SandboxOperationError: If file read fails.
+            SandboxConnectionError: If connection to sandbox fails after retries.
+            SandboxNotReadyError: If sandbox is not ready.
+            SandboxClientError: For other errors.
+        """
+        dataplane_url = self._require_dataplane_url()
+        url = f"{dataplane_url}/download"
+
+        try:
+            response = await self._client._http.get(
+                url,
+                params={"path": path},
+                timeout=timeout,
+                headers=self._client._request_headers(headers),
+            )
+            response.raise_for_status()
+            return response.content
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                raise ResourceNotFoundError(
+                    f"File '{path}' not found in sandbox '{self.name}'",
+                    resource_type="file",
+                ) from e
+            handle_sandbox_http_error(e)
+            # This line should never be reached but satisfies type checker
+            raise  # pragma: no cover
+
+    async def tunnel(
+        self,
+        remote_port: int,
+        *,
+        local_port: int = 0,
+        max_reconnects: int = 3,
+        headers: RequestHeaders = None,
+    ) -> AsyncTunnel:
+        """Open a TCP tunnel to a port inside the sandbox.
+
+        Creates a local TCP listener that forwards connections through a
+        yamux-multiplexed WebSocket to the specified port inside the sandbox.
+        Works with any TCP protocol (databases, Redis, HTTP, etc.).
+
+        Usage::
+
+            async with await sandbox.tunnel(remote_port=5432) as t:
+                conn = await asyncpg.connect(host="127.0.0.1", port=t.local_port)
+
+        Args:
+            remote_port: TCP port inside the sandbox to tunnel to (1-65535).
+            local_port: Local port to listen on. Defaults to mirroring
+                remote_port. Use 0 to let the OS pick an available port.
+            max_reconnects: Maximum number of automatic reconnect attempts
+                when the WebSocket session drops. Set to 0 to disable.
+
+        Returns:
+            An AsyncTunnel instance (async context manager).
+
+        Raises:
+            ValueError: If port values are out of range.
+            DataplaneNotConfiguredError: If dataplane_url is not configured.
+            SandboxNotReadyError: If sandbox is not ready.
+        """
+        if not 1 <= remote_port <= 65535:
+            raise ValueError(
+                f"remote_port must be between 1 and 65535 (got {remote_port})"
+            )
+        if local_port and not 1 <= local_port <= 65535:
+            raise ValueError(
+                f"local_port must be between 1 and 65535 (got {local_port})"
+            )
+        dataplane_url = self._require_dataplane_url()
+        api_key = self._client._api_key
+        t = AsyncTunnel(
+            dataplane_url,
+            api_key,
+            remote_port,
+            local_port=local_port,
+            max_reconnects=max_reconnects,
+            headers=headers,
+        )
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, t._tunnel._start)
+        return t
+
+    async def service(
+        self,
+        port: int,
+        *,
+        expires_in_seconds: int = 600,
+        headers: RequestHeaders = None,
+    ) -> AsyncServiceURL:
+        """Get an authenticated URL for a service running in this sandbox.
+
+        Returns an :class:`AsyncServiceURL` whose async accessors
+        auto-refresh the token transparently before it expires.
+
+        Args:
+            port: Port the service is listening on inside the sandbox.
+            expires_in_seconds: Token TTL in seconds (1--86400, default 600).
+            headers: Optional per-request header overrides.
+
+        Returns:
+            AsyncServiceURL with auto-refreshing token and HTTP helpers.
+
+        Raises:
+            ResourceNotFoundError: If sandbox not found.
+            ValueError: If port or expires_in_seconds is out of range.
+            SandboxClientError: For other errors.
+        """
+        return await self._client.service(
+            self.name,
+            port,
+            expires_in_seconds=expires_in_seconds,
+            headers=headers,
+        )
+
+    async def start(
+        self,
+        *,
+        timeout: int = 120,
+        headers: RequestHeaders = None,
+    ) -> None:
+        """Start a stopped sandbox and wait until ready.
+
+        After starting, the sandbox's status and dataplane_url are updated
+        in place.
+
+        Args:
+            timeout: Timeout in seconds when waiting for ready.
+            headers: Optional per-request header overrides.
+
+        Raises:
+            ResourceNotFoundError: If sandbox not found.
+            ResourceCreationError: If sandbox fails during startup.
+            ResourceTimeoutError: If sandbox doesn't become ready within timeout.
+            SandboxClientError: For other errors.
+        """
+        refreshed = await self._client.start_sandbox(
+            self.name, timeout=timeout, headers=headers
+        )
+        self.status = refreshed.status
+        self.dataplane_url = refreshed.dataplane_url
+
+    async def stop(self, *, headers: RequestHeaders = None) -> None:
+        """Stop a running sandbox (preserves sandbox files for later restart).
+
+        Args:
+            headers: Optional per-request header overrides.
+
+        Raises:
+            ResourceNotFoundError: If sandbox not found.
+            SandboxClientError: For other errors.
+        """
+        await self._client.stop_sandbox(self.name, headers=headers)
+        self.status = "stopped"
+        self.dataplane_url = None
+
+    async def delete(self, *, headers: RequestHeaders = None) -> None:
+        """Delete this sandbox.
+
+        Args:
+            headers: Optional per-request header overrides.
+
+        Raises:
+            ResourceNotFoundError: If sandbox not found.
+            SandboxClientError: For other errors.
+        """
+        await self._client.delete_sandbox(self.name, headers=headers)
+
+    async def capture_snapshot(
+        self,
+        name: str,
+        *,
+        timeout: int = 60,
+        headers: RequestHeaders = None,
+    ) -> Snapshot:
+        """Capture a snapshot from this sandbox.
+
+        Args:
+            name: Snapshot name.
+            timeout: Timeout in seconds when waiting for ready.
+            headers: Optional per-request header overrides.
+
+        Returns:
+            Snapshot in "ready" status.
+
+        Raises:
+            ResourceNotFoundError: If sandbox not found.
+            ResourceTimeoutError: If snapshot doesn't become ready within timeout.
+            ResourceCreationError: If snapshot capture fails.
+            SandboxClientError: For other errors.
+        """
+        return await self._client.capture_snapshot(
+            self.name,
+            name,
+            timeout=timeout,
+            headers=headers,
+        )

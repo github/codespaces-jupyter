@@ -1,0 +1,2468 @@
+"""The Async LangSmith Client."""
+
+from __future__ import annotations
+
+import asyncio
+import datetime
+import json
+import random
+import uuid
+import warnings
+from collections.abc import AsyncGenerator, AsyncIterator, Mapping, Sequence
+from functools import partial
+from typing import (
+    Any,
+    Literal,
+    Optional,
+    Union,
+    cast,
+)
+
+import httpx
+
+from langsmith import client as ls_client
+from langsmith import schemas as ls_schemas
+from langsmith import utils as ls_utils
+from langsmith._internal import _profiles
+from langsmith._internal._hub import (
+    HUB,
+    PLATFORM_HUB,
+    REPO_HANDLE_PATTERN,
+    build_commit_url,
+    resolve_owner_for_url,
+    validate_parent_commit,
+)
+from langsmith.prompt_cache import AsyncPromptCache, async_prompt_cache_singleton
+
+ID_TYPE = Union[uuid.UUID, str]
+
+
+class AsyncClient:
+    """Async Client for interacting with the LangSmith API."""
+
+    __slots__ = (
+        "_retry_config",
+        "_client",
+        "_web_url",
+        "_settings",
+        "_cache",
+        "_custom_headers",
+        "_api_key",
+        "_oauth_access_token",
+        "_profile_auth",
+        "_profile_auth_headers",
+    )
+
+    _custom_headers: dict[str, str]
+    _api_key: Optional[str]
+    _oauth_access_token: Optional[str]
+    _profile_auth: Optional[_profiles.ProfileAuth]
+    _profile_auth_headers: dict[str, str]
+
+    def _compute_headers(self) -> dict[str, str]:
+        headers = {**self._custom_headers}
+        # Required headers that should not be overridden
+        headers["Content-Type"] = "application/json"
+        if self._api_key:
+            headers[ls_client.X_API_KEY] = self._api_key
+        elif self._profile_auth_headers:
+            headers.update(self._profile_auth_headers)
+        elif self._oauth_access_token:
+            headers["Authorization"] = f"Bearer {self._oauth_access_token}"
+        return headers
+
+    @property
+    def headers(self) -> dict[str, str]:
+        """Return the custom headers used for API requests."""
+        return self._custom_headers
+
+    @headers.setter
+    def headers(self, value: Optional[dict[str, str]]) -> None:
+        self._custom_headers = value or {}
+        self._client.headers = httpx.Headers(self._compute_headers())
+
+    @property
+    def _headers(self) -> dict[str, str]:
+        """Return the merged headers used for API requests."""
+        return dict(self._client.headers)
+
+    @property
+    def api_key(self) -> Optional[str]:
+        """Return the API key used for authentication."""
+        return self._api_key
+
+    @api_key.setter
+    def api_key(self, value: Optional[str]) -> None:
+        self._api_key = value
+        self._client.headers = httpx.Headers(self._compute_headers())
+
+    def __init__(
+        self,
+        api_url: Optional[str] = None,
+        api_key: Optional[str] = None,
+        timeout_ms: Optional[
+            Union[
+                int, tuple[Optional[int], Optional[int], Optional[int], Optional[int]]
+            ]
+        ] = None,
+        retry_config: Optional[Mapping[str, Any]] = None,
+        web_url: Optional[str] = None,
+        headers: Optional[dict[str, str]] = None,
+        disable_prompt_cache: bool = False,
+        cache: Optional[Union[bool, AsyncPromptCache]] = None,
+    ):
+        """Initialize the async client.
+
+        Args:
+            api_url: URL for the LangSmith API.
+            api_key: API key for the LangSmith API.
+            timeout_ms: Timeout for requests in milliseconds.
+            retry_config: Retry configuration.
+            web_url: URL for the LangSmith web app.
+            headers: Additional HTTP headers to include in all requests.
+
+                These headers will be merged with the default headers
+                (Content-Type, x-api-key, etc.). Custom headers will not override
+                the default required headers.
+            disable_prompt_cache: Disable prompt caching for this client.
+            cache: **[Deprecated]** Control prompt caching behavior.
+
+                This parameter is deprecated. Use `configure_global_async_prompt_cache()` to
+                configure caching, or `disable_prompt_cache=True` to disable it.
+
+                - `True`: Enable caching with the global singleton
+                - `False`: Disable caching (equivalent to `disable_prompt_cache=True`)
+                - `AsyncCache(...)`/`AsyncPromptCache(...)`: Use a custom cache instance
+        """
+        self._retry_config = retry_config or {"max_retries": 3}
+        self._custom_headers = headers or {}
+        env_api_url = ls_client._get_langsmith_env_var_uncached("ENDPOINT")
+        env_api_key = ls_client._get_langsmith_env_var_uncached("API_KEY")
+        profile_config = _profiles.load_profile_client_config()
+        api_url_ = (
+            api_url if api_url is not None else env_api_url or profile_config.api_url
+        )
+        explicit_or_env_api_key = api_key if api_key is not None else env_api_key
+        profile_auth_enabled = api_key is None and env_api_key is None
+        use_profile_oauth = profile_auth_enabled and profile_config.has_oauth
+        api_key_ = (
+            explicit_or_env_api_key
+            if explicit_or_env_api_key is not None
+            else None
+            if use_profile_oauth
+            else profile_config.api_key
+        )
+        self._oauth_access_token = (
+            profile_config.oauth_access_token if use_profile_oauth else None
+        )
+        api_key = ls_utils.get_api_key(api_key_)
+        api_url = ls_utils.get_api_url(api_url_)
+        self._profile_auth = None
+        self._profile_auth_headers = {}
+        if use_profile_oauth:
+            self._profile_auth = _profiles.ProfileAuth(
+                profile_config,
+                api_key_header=ls_client.X_API_KEY,
+            )
+            self._profile_auth_headers = self._profile_auth.current_auth_headers()
+            self._oauth_access_token = self._profile_auth.oauth_access_token
+        self._api_key = api_key
+        _headers = self._compute_headers()
+        ls_client._validate_api_key_if_hosted(
+            api_url,
+            api_key
+            or self._oauth_access_token
+            or (
+                "profile-auth"
+                if self._profile_auth is not None and self._profile_auth.has_auth
+                else None
+            ),
+        )
+
+        if isinstance(timeout_ms, int):
+            timeout_: Union[tuple, float] = (timeout_ms / 1000, None, None, None)
+        elif isinstance(timeout_ms, tuple):
+            timeout_ = tuple([t / 1000 if t is not None else None for t in timeout_ms])
+        else:
+            timeout_ = 10
+        self._client = httpx.AsyncClient(
+            base_url=api_url, headers=_headers, timeout=timeout_
+        )
+        self._web_url = web_url
+        self._settings: Optional[ls_schemas.LangSmithSettings] = None
+
+        # Initialize prompt cache
+        # Handle backwards compatibility for deprecated `cache` parameter
+        if cache is not None and disable_prompt_cache:
+            import warnings
+
+            warnings.warn(
+                "Both 'cache' and 'disable_prompt_cache' were provided. "
+                "The 'cache' parameter is deprecated and will be removed in a future version. "
+                "Using 'cache' parameter value.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+        if cache is not None:
+            import warnings
+
+            warnings.warn(
+                "The 'cache' parameter is deprecated and will be removed in a future version. "
+                "Use 'configure_global_async_prompt_cache()' to configure the global cache, or "
+                "'disable_prompt_cache=True' to disable caching for this client.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            # Handle old cache parameter
+            if cache is False:
+                self._cache: Optional[AsyncPromptCache] = None
+            elif cache is True:
+                self._cache = async_prompt_cache_singleton
+            else:
+                # Custom AsyncPromptCache instance provided
+                self._cache = cache
+        elif not disable_prompt_cache:
+            # Use the global singleton instance
+            self._cache = async_prompt_cache_singleton
+        else:
+            self._cache = None
+
+    async def __aenter__(self) -> AsyncClient:
+        """Enter the async client."""
+        if self._cache is not None:
+            await self._cache.start()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Exit the async client."""
+        await self.aclose()
+
+    async def aclose(self):
+        """Close the async client."""
+        if self._cache is not None:
+            await self._cache.stop()
+        await self._client.aclose()
+
+    def __repr__(self) -> str:
+        """Return a string representation of the instance.
+
+        Returns:
+            The string representation of the instance.
+        """
+        return f"AsyncClient (API URL: {self._api_url})"
+
+    @property
+    def _api_url(self):
+        return str(self._client.base_url)
+
+    @property
+    def _host_url(self) -> str:
+        """The web host url."""
+        return ls_utils.get_host_url(self._web_url, self._api_url)
+
+    async def _ensure_profile_auth(self) -> None:
+        if self._api_key or self._profile_auth is None:
+            return
+        if self._profile_auth.needs_refresh():
+            auth_headers = await asyncio.to_thread(self._profile_auth.get_auth_headers)
+        else:
+            auth_headers = self._profile_auth.current_auth_headers()
+        self._profile_auth_headers = auth_headers
+        self._oauth_access_token = self._profile_auth.oauth_access_token
+        self._client.headers = httpx.Headers(self._compute_headers())
+
+    async def _arequest_with_retries(
+        self,
+        method: str,
+        endpoint: str,
+        **kwargs: Any,
+    ) -> httpx.Response:
+        """Make an async HTTP request with retries."""
+        max_retries = cast(int, self._retry_config.get("max_retries", 3))
+
+        # Python requests library used by the normal Client filters out params with None values
+        # The httpx library does not. Filter them out here to keep behavior consistent
+        if "params" in kwargs:
+            params = kwargs["params"]
+            filtered_params = {k: v for k, v in params.items() if v is not None}
+            kwargs["params"] = filtered_params
+
+        await self._ensure_profile_auth()
+        if self._profile_auth is not None and "headers" in kwargs:
+            kwargs["headers"] = self._profile_auth.prepare_request_headers(
+                kwargs["headers"]
+            )
+
+        for attempt in range(max_retries):
+            try:
+                try:
+                    response = await self._client.request(method, endpoint, **kwargs)
+                    ls_utils.raise_for_status_with_text(response)
+                    return response
+                except httpx.HTTPStatusError as e:
+                    response = e.response
+                    if response.status_code in {425, 500, 502, 503, 504}:
+                        raise ls_utils.LangSmithAPIError(
+                            f"Server error ({response.status_code}) caused failure to"
+                            f" {method} {endpoint} in"
+                            f" LangSmith API. {repr(e)}"
+                        ) from e
+                    elif response.status_code == 408:
+                        raise ls_utils.LangSmithRequestTimeout(
+                            f"Client took too long to send request to {method}{endpoint}"
+                        ) from e
+                    elif response.status_code == 429:
+                        raise ls_utils.LangSmithRateLimitError(
+                            f"Rate limit exceeded for {endpoint}. {repr(e)}"
+                        ) from e
+                    elif response.status_code == 401:
+                        raise ls_utils.LangSmithAuthError(
+                            f"Authentication failed for {endpoint}. {repr(e)}"
+                        ) from e
+                    elif response.status_code == 404:
+                        raise ls_utils.LangSmithNotFoundError(
+                            f"Resource not found for {endpoint}. {repr(e)}"
+                        ) from e
+                    elif response.status_code == 409:
+                        raise ls_utils.LangSmithConflictError(
+                            f"Conflict for {endpoint}. {repr(e)}"
+                        ) from e
+                    else:
+                        raise ls_utils.LangSmithError(
+                            f"Failed to {method} {endpoint} in LangSmith API. {repr(e)}"
+                        ) from e
+                except httpx.RequestError as e:
+                    raise ls_utils.LangSmithConnectionError(
+                        f"Request error: {repr(e)}"
+                    ) from e
+            except (
+                ls_utils.LangSmithConnectionError,
+                ls_utils.LangSmithRequestTimeout,
+                ls_utils.LangSmithAPIError,
+            ):
+                if attempt == max_retries - 1:
+                    raise
+                sleep_time = 2**attempt + (random.random() * 0.5)
+                await asyncio.sleep(sleep_time)
+        raise ls_utils.LangSmithAPIError(
+            "Unexpected error connecting to the LangSmith API"
+        )
+
+    async def _aget_paginated_list(
+        self,
+        path: str,
+        params: Optional[dict[str, Any]] = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Get a paginated list of items."""
+        params = params or {}
+        offset = params.get("offset", 0)
+        params["limit"] = params.get("limit", 100)
+        while True:
+            params["offset"] = offset
+            response = await self._arequest_with_retries("GET", path, params=params)
+            items = response.json()
+            if not items:
+                break
+            for item in items:
+                yield item
+            if len(items) < params["limit"]:
+                break
+            offset += len(items)
+
+    async def _aget_cursor_paginated_list(
+        self,
+        path: str,
+        *,
+        body: Optional[dict] = None,
+        request_method: str = "POST",
+        data_key: str = "runs",
+    ) -> AsyncIterator[dict]:
+        """Get a cursor paginated list of items."""
+        params_ = body.copy() if body else {}
+        while True:
+            response = await self._arequest_with_retries(
+                request_method,
+                path,
+                content=ls_client._dumps_json(params_),
+            )
+            response_body = response.json()
+            if not response_body:
+                break
+            if not response_body.get(data_key):
+                break
+            for run in response_body[data_key]:
+                yield run
+            cursors = response_body.get("cursors")
+            if not cursors:
+                break
+            if not cursors.get("next"):
+                break
+            params_["cursor"] = cursors["next"]
+
+    async def create_run(
+        self,
+        name: str,
+        inputs: dict[str, Any],
+        run_type: str,
+        *,
+        project_name: Optional[str] = None,
+        revision_id: Optional[ls_client.ID_TYPE] = None,
+        **kwargs: Any,
+    ) -> None:
+        """Create a run."""
+        run_create = {
+            "name": name,
+            "id": kwargs.get("id") or uuid.uuid4(),
+            "inputs": inputs,
+            "run_type": run_type,
+            "session_name": project_name or ls_utils.get_tracer_project(),
+            "revision_id": revision_id,
+            **kwargs,
+        }
+        await self._arequest_with_retries(
+            "POST", "/runs", content=ls_client._dumps_json(run_create)
+        )
+
+    async def update_run(
+        self,
+        run_id: ls_client.ID_TYPE,
+        **kwargs: Any,
+    ) -> None:
+        """Update a run."""
+        data = {**kwargs, "id": ls_client._as_uuid(run_id)}
+        await self._arequest_with_retries(
+            "PATCH",
+            f"/runs/{ls_client._as_uuid(run_id)}",
+            content=ls_client._dumps_json(data),
+        )
+
+    async def read_run(self, run_id: ls_client.ID_TYPE) -> ls_schemas.Run:
+        """Read a run."""
+        response = await self._arequest_with_retries(
+            "GET",
+            f"/runs/{ls_client._as_uuid(run_id)}",
+        )
+        return ls_schemas.Run(**response.json())
+
+    async def list_runs(
+        self,
+        *,
+        project_id: Optional[
+            Union[ls_client.ID_TYPE, Sequence[ls_client.ID_TYPE]]
+        ] = None,
+        project_name: Optional[Union[str, Sequence[str]]] = None,
+        run_type: Optional[str] = None,
+        trace_id: Optional[ls_client.ID_TYPE] = None,
+        reference_example_id: Optional[ls_client.ID_TYPE] = None,
+        query: Optional[str] = None,
+        filter: Optional[str] = None,
+        trace_filter: Optional[str] = None,
+        tree_filter: Optional[str] = None,
+        is_root: Optional[bool] = None,
+        parent_run_id: Optional[ls_client.ID_TYPE] = None,
+        start_time: Optional[datetime.datetime] = None,
+        error: Optional[bool] = None,
+        run_ids: Optional[Sequence[ls_client.ID_TYPE]] = None,
+        select: Optional[Sequence[str]] = None,
+        limit: Optional[int] = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[ls_schemas.Run]:
+        """List runs from the LangSmith API.
+
+        Args:
+            project_id: The ID(s) of the project to filter by.
+            project_name: The name(s) of the project to filter by.
+            run_type: The type of the runs to filter by.
+            trace_id: The ID of the trace to filter by.
+            reference_example_id: The ID of the reference example to filter by.
+            query: The query string to filter by.
+            filter: The filter string to filter by.
+            trace_filter: Filter to apply to the ROOT run in the trace tree.
+
+                This is meant to be used in conjunction with the regular `filter`
+                parameter to let you filter runs by attributes of the root run within a
+                trace.
+            tree_filter: Filter to apply to OTHER runs in the trace tree, including
+                sibling and child runs.
+
+                This is meant to be used in conjunction with the regular `filter`
+                parameter to let you filter runs by attributes of any run within a
+                trace.
+            is_root: Whether to filter by root runs.
+            parent_run_id: The ID of the parent run to filter by.
+            start_time: The start time to filter by.
+            error: Whether to filter by error status.
+            run_ids: The IDs of the runs to filter by.
+            select: The fields to select.
+            limit: The maximum number of runs to return.
+            **kwargs: Additional keyword arguments.
+
+        Yields:
+            The runs.
+
+        Examples:
+            ```python
+            # List all runs in a project
+            project_runs = client.list_runs(project_name="<your_project>")
+
+            # List LLM and Chat runs in the last 24 hours
+            todays_llm_runs = client.list_runs(
+                project_name="<your_project>",
+                start_time=datetime.now() - timedelta(days=1),
+                run_type="llm",
+            )
+
+            # List root traces in a project
+            root_runs = client.list_runs(project_name="<your_project>", is_root=1)
+
+            # List runs without errors
+            correct_runs = client.list_runs(project_name="<your_project>", error=False)
+
+            # List runs and only return their inputs/outputs (to speed up the query)
+            input_output_runs = client.list_runs(
+                project_name="<your_project>", select=["inputs", "outputs"]
+            )
+
+            # List runs by run ID
+            run_ids = [
+                "a36092d2-4ad5-4fb4-9c0d-0dba9a2ed836",
+                "9398e6be-964f-4aa4-8ae9-ad78cd4b7074",
+            ]
+            selected_runs = client.list_runs(id=run_ids)
+
+            # List all "chain" type runs that took more than 10 seconds and had
+            # `total_tokens` greater than 5000
+            chain_runs = client.list_runs(
+                project_name="<your_project>",
+                filter='and(eq(run_type, "chain"), gt(latency, 10), gt(total_tokens, 5000))',
+            )
+
+            # List all runs called "extractor" whose root of the trace was assigned feedback "user_score" score of 1
+            good_extractor_runs = client.list_runs(
+                project_name="<your_project>",
+                filter='eq(name, "extractor")',
+                trace_filter='and(eq(feedback_key, "user_score"), eq(feedback_score, 1))',
+            )
+
+            # List all runs that started after a specific timestamp and either have "error" not equal to null or a "Correctness" feedback score equal to 0
+            complex_runs = client.list_runs(
+                project_name="<your_project>",
+                filter='and(gt(start_time, "2023-07-15T12:34:56Z"), or(neq(error, null), and(eq(feedback_key, "Correctness"), eq(feedback_score, 0.0))))',
+            )
+
+            # List all runs where `tags` include "experimental" or "beta" and `latency` is greater than 2 seconds
+            tagged_runs = client.list_runs(
+                project_name="<your_project>",
+                filter='and(or(has(tags, "experimental"), has(tags, "beta")), gt(latency, 2))',
+            )
+            ```
+        """  # noqa: E501
+        project_ids = []
+        if isinstance(project_id, (uuid.UUID, str)):
+            project_ids.append(project_id)
+        elif isinstance(project_id, list):
+            project_ids.extend(project_id)
+        if project_name is not None:
+            if isinstance(project_name, str):
+                project_name = [project_name]
+            projects = await asyncio.gather(
+                *[self.read_project(project_name=name) for name in project_name]
+            )
+            project_ids.extend([project.id for project in projects])
+
+        if select and "child_run_ids" in select:
+            warnings.warn(
+                "The child_run_ids field is deprecated and will be removed in following versions",
+                DeprecationWarning,
+            )
+
+        body_query: dict[str, Any] = {
+            "session": project_ids if project_ids else None,
+            "run_type": run_type,
+            "reference_example": (
+                [reference_example_id] if reference_example_id else None
+            ),
+            "query": query,
+            "filter": filter,
+            "trace_filter": trace_filter,
+            "tree_filter": tree_filter,
+            "is_root": is_root,
+            "parent_run": parent_run_id,
+            "start_time": start_time.isoformat() if start_time else None,
+            "error": error,
+            "id": run_ids,
+            "trace": trace_id,
+            "select": select,
+            "limit": limit,
+            **kwargs,
+        }
+        if project_ids:
+            body_query["session"] = [
+                str(ls_client._as_uuid(id_)) for id_ in project_ids
+            ]
+        body = {k: v for k, v in body_query.items() if v is not None}
+        ix = 0
+        async for run in self._aget_cursor_paginated_list("/runs/query", body=body):
+            yield ls_schemas.Run(**run)
+            ix += 1
+            if limit is not None and ix >= limit:
+                break
+
+    async def share_run(
+        self, run_id: ls_client.ID_TYPE, *, share_id: Optional[ls_client.ID_TYPE] = None
+    ) -> str:
+        """Get a share link for a run asynchronously.
+
+        Args:
+            run_id (ID_TYPE): The ID of the run to share.
+            share_id: Custom share ID.
+
+                If not provided, a random UUID will be generated.
+
+        Returns:
+            The URL of the shared run.
+
+        Raises:
+            httpx.HTTPStatusError: If the API request fails.
+        """
+        run_id_ = ls_client._as_uuid(run_id, "run_id")
+        data = {
+            "run_id": str(run_id_),
+            "share_token": str(share_id or uuid.uuid4()),
+        }
+        response = await self._arequest_with_retries(
+            "PUT",
+            f"/runs/{run_id_}/share",
+            content=ls_client._dumps_json(data),
+        )
+        ls_utils.raise_for_status_with_text(response)
+        share_token = response.json()["share_token"]
+        return f"{self._host_url}/public/{share_token}/r"
+
+    async def run_is_shared(self, run_id: ls_client.ID_TYPE) -> bool:
+        """Get share state for a run asynchronously."""
+        link = await self.read_run_shared_link(ls_client._as_uuid(run_id, "run_id"))
+        return link is not None
+
+    async def read_run_shared_link(self, run_id: ls_client.ID_TYPE) -> Optional[str]:
+        """Retrieve the shared link for a specific run asynchronously.
+
+        Args:
+            run_id (ID_TYPE): The ID of the run.
+
+        Returns:
+            Optional[str]: The shared link for the run, or None if the link is not
+            available.
+
+        Raises:
+            httpx.HTTPStatusError: If the API request fails.
+        """
+        response = await self._arequest_with_retries(
+            "GET",
+            f"/runs/{ls_client._as_uuid(run_id, 'run_id')}/share",
+        )
+        ls_utils.raise_for_status_with_text(response)
+        result = response.json()
+        if result is None or "share_token" not in result:
+            return None
+        return f"{self._host_url}/public/{result['share_token']}/r"
+
+    async def create_project(
+        self,
+        project_name: str,
+        **kwargs: Any,
+    ) -> ls_schemas.TracerSession:
+        """Create a project."""
+        data = {"name": project_name, **kwargs}
+        response = await self._arequest_with_retries(
+            "POST", "/sessions", content=ls_client._dumps_json(data)
+        )
+        return ls_schemas.TracerSession(**response.json())
+
+    async def read_project(
+        self,
+        project_name: Optional[str] = None,
+        project_id: Optional[ls_client.ID_TYPE] = None,
+    ) -> ls_schemas.TracerSession:
+        """Read a project."""
+        if project_id:
+            response = await self._arequest_with_retries(
+                "GET", f"/sessions/{ls_client._as_uuid(project_id)}"
+            )
+        elif project_name:
+            response = await self._arequest_with_retries(
+                "GET", "/sessions", params={"name": project_name}
+            )
+        else:
+            raise ValueError("Either project_name or project_id must be provided")
+
+        data = response.json()
+        if isinstance(data, list):
+            if not data:
+                raise ls_utils.LangSmithNotFoundError(
+                    f"Project {project_name} not found"
+                )
+            return ls_schemas.TracerSession(**data[0])
+        return ls_schemas.TracerSession(**data)
+
+    async def delete_project(
+        self, *, project_name: Optional[str] = None, project_id: Optional[str] = None
+    ) -> None:
+        """Delete a project from LangSmith.
+
+        Args:
+            project_name: The name of the project to delete.
+            project_id: The ID of the project to delete.
+        """
+        if project_id is None and project_name is None:
+            raise ValueError("Either project_name or project_id must be provided")
+        if project_id is None:
+            project = await self.read_project(project_name=project_name)
+            project_id = str(project.id)
+        if not project_id:
+            raise ValueError("Project not found")
+        await self._arequest_with_retries(
+            "DELETE",
+            f"/sessions/{ls_client._as_uuid(project_id)}",
+        )
+
+    async def create_dataset(
+        self,
+        dataset_name: str,
+        **kwargs: Any,
+    ) -> ls_schemas.Dataset:
+        """Create a dataset."""
+        data = {"name": dataset_name, **kwargs}
+        response = await self._arequest_with_retries(
+            "POST", "/datasets", content=ls_client._dumps_json(data)
+        )
+        return ls_schemas.Dataset(**response.json())
+
+    async def read_dataset(
+        self,
+        dataset_name: Optional[str] = None,
+        dataset_id: Optional[ls_client.ID_TYPE] = None,
+    ) -> ls_schemas.Dataset:
+        """Read a dataset."""
+        if dataset_id:
+            response = await self._arequest_with_retries(
+                "GET", f"/datasets/{ls_client._as_uuid(dataset_id)}"
+            )
+        elif dataset_name:
+            response = await self._arequest_with_retries(
+                "GET", "/datasets", params={"name": dataset_name}
+            )
+        else:
+            raise ValueError("Either dataset_name or dataset_id must be provided")
+
+        data = response.json()
+        if isinstance(data, list):
+            if not data:
+                raise ls_utils.LangSmithNotFoundError(
+                    f"Dataset {dataset_name} not found"
+                )
+            return ls_schemas.Dataset(**data[0])
+        return ls_schemas.Dataset(**data)
+
+    async def delete_dataset(self, dataset_id: ls_client.ID_TYPE) -> None:
+        """Delete a dataset."""
+        await self._arequest_with_retries(
+            "DELETE",
+            f"/datasets/{ls_client._as_uuid(dataset_id)}",
+        )
+
+    async def list_datasets(
+        self,
+        **kwargs: Any,
+    ) -> AsyncIterator[ls_schemas.Dataset]:
+        """List datasets."""
+        async for dataset in self._aget_paginated_list("/datasets", params=kwargs):
+            yield ls_schemas.Dataset(**dataset)
+
+    async def create_example(
+        self,
+        inputs: dict[str, Any],
+        outputs: Optional[dict[str, Any]] = None,
+        dataset_id: Optional[ls_client.ID_TYPE] = None,
+        dataset_name: Optional[str] = None,
+        **kwargs: Any,
+    ) -> ls_schemas.Example:
+        """Create an example."""
+        if dataset_id is None and dataset_name is None:
+            raise ValueError("Either dataset_id or dataset_name must be provided")
+        if dataset_id is None:
+            dataset = await self.read_dataset(dataset_name=dataset_name)
+            dataset_id = dataset.id
+
+        data = {
+            "inputs": inputs,
+            "outputs": outputs,
+            "dataset_id": str(dataset_id),
+            **kwargs,
+        }
+        response = await self._arequest_with_retries(
+            "POST", "/examples", content=ls_client._dumps_json(data)
+        )
+        return ls_schemas.Example(**response.json())
+
+    async def read_example(self, example_id: ls_client.ID_TYPE) -> ls_schemas.Example:
+        """Read an example."""
+        response = await self._arequest_with_retries(
+            "GET", f"/examples/{ls_client._as_uuid(example_id)}"
+        )
+        return ls_schemas.Example(**response.json())
+
+    async def list_examples(
+        self,
+        *,
+        dataset_id: Optional[ls_client.ID_TYPE] = None,
+        dataset_name: Optional[str] = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[ls_schemas.Example]:
+        """List examples."""
+        params = kwargs.copy()
+        if dataset_id:
+            params["dataset"] = ls_client._as_uuid(dataset_id)
+        elif dataset_name:
+            dataset = await self.read_dataset(dataset_name=dataset_name)
+            params["dataset"] = dataset.id
+
+        async for example in self._aget_paginated_list("/examples", params=params):
+            yield ls_schemas.Example(**example)
+
+    async def create_feedback(
+        self,
+        run_id: Optional[ls_client.ID_TYPE],
+        key: str,
+        score: Optional[float] = None,
+        value: Union[float, int, bool, str, dict, None] = None,
+        comment: Optional[str] = None,
+        **kwargs: Any,
+    ) -> ls_schemas.Feedback:
+        """Create feedback for a run.
+
+        Args:
+            run_id: The ID of the run to provide feedback for.
+
+                Can be `None` for project-level feedback.
+            key: The name of the metric or aspect this feedback is about.
+            score: The score to rate this run on the metric or aspect.
+            value: The display value or non-numeric value for this feedback.
+            comment: A comment about this feedback.
+            **kwargs: Additional keyword arguments to include in the feedback data.
+
+        Returns:
+            The created feedback object.
+
+        Raises:
+            httpx.HTTPStatusError: If the API request fails.
+        """  # noqa: E501
+        data = {
+            "run_id": ls_client._ensure_uuid(run_id, accept_null=True),
+            "key": key,
+            "score": score,
+            "value": value,
+            "comment": comment,
+            **kwargs,
+        }
+        response = await self._arequest_with_retries(
+            "POST", "/feedback", content=ls_client._dumps_json(data)
+        )
+        return ls_schemas.Feedback(**response.json())
+
+    async def create_feedback_from_token(
+        self,
+        token_or_url: Union[str, uuid.UUID],
+        score: Union[float, int, bool, None] = None,
+        *,
+        value: Union[float, int, bool, str, dict, None] = None,
+        correction: Union[dict, None] = None,
+        comment: Union[str, None] = None,
+        metadata: Optional[dict] = None,
+    ) -> None:
+        """Create feedback from a presigned token or URL.
+
+        Args:
+            token_or_url: The token or URL from which to create feedback.
+            score: The score of the feedback.
+            value: The value of the feedback.
+            correction: The correction of the feedback.
+            comment: The comment of the feedback.
+            metadata: Additional metadata for the feedback.
+
+        Raises:
+            ValueError: If the source API URL is invalid.
+
+        Returns:
+            This method does not return anything.
+        """
+        source_api_url, token_uuid = ls_client._parse_token_or_url(
+            token_or_url, self._api_url, num_parts=1
+        )
+        if source_api_url != self._api_url:
+            raise ValueError(f"Invalid source API URL. {source_api_url}")
+        response = await self._arequest_with_retries(
+            "POST",
+            f"/feedback/tokens/{ls_client._as_uuid(token_uuid)}",
+            content=ls_client._dumps_json(
+                {
+                    "score": score,
+                    "value": value,
+                    "correction": correction,
+                    "comment": comment,
+                    "metadata": metadata,
+                    # TODO: Add ID once the API supports it.
+                }
+            ),
+        )
+        ls_utils.raise_for_status_with_text(response)
+
+    async def create_presigned_feedback_token(
+        self,
+        run_id: ls_client.ID_TYPE,
+        feedback_key: str,
+        *,
+        expiration: Optional[datetime.datetime | datetime.timedelta] = None,
+        feedback_config: Optional[ls_schemas.FeedbackConfig] = None,
+        feedback_id: Optional[ls_client.ID_TYPE] = None,
+    ) -> ls_schemas.FeedbackIngestToken:
+        """Create a pre-signed URL to send feedback data to.
+
+        This is useful for giving browser-based clients a way to upload
+        feedback data directly to LangSmith without accessing the
+        API key.
+
+        Args:
+            run_id (Union[UUID, str]): The ID of the run to provide feedback for.
+            feedback_key: The name of the metric or aspect this feedback is about.
+            expiration: The expiration time of the pre-signed URL.
+
+                Either a datetime or a timedelta offset from now.
+
+                Default to 3 hours.
+            feedback_config: `FeedbackConfig` or `None`.
+
+                If creating a feedback_key for the first time, this defines how the
+                metric should be interpreted, such as a continuous score (w/ optional
+                bounds), or distribution over categorical values.
+            feedback_id: The ID of the feedback to create.
+
+                If not provided, a new feedback will be created.
+
+        Returns:
+            The pre-signed URL for uploading feedback data.
+        """
+        body: dict[str, Any] = {
+            "run_id": run_id,
+            "feedback_key": feedback_key,
+            "feedback_config": feedback_config,
+            "id": feedback_id or str(uuid.uuid4()),
+        }
+        if expiration is None:
+            body["expires_in"] = ls_schemas.TimeDeltaInput(
+                days=0,
+                hours=3,
+                minutes=0,
+            )
+        elif isinstance(expiration, datetime.datetime):
+            body["expires_at"] = expiration.isoformat()
+        elif isinstance(expiration, datetime.timedelta):
+            body["expires_in"] = ls_schemas.TimeDeltaInput(
+                days=expiration.days,
+                hours=expiration.seconds // 3600,
+                minutes=(expiration.seconds % 3600) // 60,
+            )
+        else:
+            raise ValueError(
+                f"Invalid expiration type: {type(expiration)}. "
+                "Expected datetime.datetime or datetime.timedelta."
+            )
+
+        response = await self._arequest_with_retries(
+            "POST",
+            "/feedback/tokens",
+            content=ls_client._dumps_json(body),
+        )
+        return ls_schemas.FeedbackIngestToken(**response.json())
+
+    async def read_feedback(
+        self, feedback_id: ls_client.ID_TYPE
+    ) -> ls_schemas.Feedback:
+        """Read feedback."""
+        response = await self._arequest_with_retries(
+            "GET", f"/feedback/{ls_client._as_uuid(feedback_id)}"
+        )
+        return ls_schemas.Feedback(**response.json())
+
+    async def list_feedback(
+        self,
+        *,
+        run_ids: Optional[Sequence[ls_client.ID_TYPE]] = None,
+        feedback_key: Optional[Sequence[str]] = None,
+        feedback_source_type: Optional[Sequence[ls_schemas.FeedbackSourceType]] = None,
+        limit: Optional[int] = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[ls_schemas.Feedback]:
+        """List feedback."""
+        params = {
+            "run": (
+                [str(ls_client._as_uuid(id_)) for id_ in run_ids] if run_ids else None
+            ),
+            "limit": min(limit, 100) if limit is not None else 100,
+            **kwargs,
+        }
+        if feedback_key is not None:
+            params["key"] = feedback_key
+        if feedback_source_type is not None:
+            params["source"] = feedback_source_type
+        ix = 0
+        async for feedback in self._aget_paginated_list("/feedback", params=params):
+            yield ls_schemas.Feedback(**feedback)
+            ix += 1
+            if limit is not None and ix >= limit:
+                break
+
+    async def delete_feedback(self, feedback_id: ID_TYPE) -> None:
+        """Delete a feedback by ID.
+
+        Args:
+            feedback_id (Union[UUID, str]): The ID of the feedback to delete.
+        """
+        response = await self._arequest_with_retries(
+            "DELETE", f"/feedback/{ls_client._as_uuid(feedback_id, 'feedback_id')}"
+        )
+        ls_utils.raise_for_status_with_text(response)
+
+    # Annotation Queue API
+
+    async def list_annotation_queues(
+        self,
+        *,
+        queue_ids: Optional[list[ID_TYPE]] = None,
+        name: Optional[str] = None,
+        name_contains: Optional[str] = None,
+        limit: Optional[int] = None,
+    ) -> AsyncIterator[ls_schemas.AnnotationQueue]:
+        """List the annotation queues on the LangSmith API.
+
+        Args:
+            queue_ids (Optional[List[Union[UUID, str]]]): The IDs of the queues to
+                filter by.
+            name: The name of the queue to filter by.
+            name_contains: The substring that the queue name should contain.
+            limit: The maximum number of queues to return.
+
+        Yields:
+            The annotation queues.
+        """
+        params: dict = {
+            "ids": (
+                [
+                    ls_client._as_uuid(id_, f"queue_ids[{i}]")
+                    for i, id_ in enumerate(queue_ids)
+                ]
+                if queue_ids is not None
+                else None
+            ),
+            "name": name,
+            "name_contains": name_contains,
+            "limit": min(limit, 100) if limit is not None else 100,
+        }
+        ix = 0
+        async for feedback in self._aget_paginated_list(
+            "/annotation-queues", params=params
+        ):
+            yield ls_schemas.AnnotationQueue(**feedback)
+            ix += 1
+            if limit is not None and ix >= limit:
+                break
+
+    async def create_annotation_queue(
+        self,
+        *,
+        name: str,
+        description: Optional[str] = None,
+        queue_id: Optional[ID_TYPE] = None,
+        rubric_instructions: Optional[str] = None,
+        rubric_items: Optional[list[ls_schemas.AnnotationQueueRubricItem]] = None,
+    ) -> ls_schemas.AnnotationQueue:
+        """Create an annotation queue on the LangSmith API.
+
+        Args:
+            name: The name of the annotation queue.
+            description: The description of the annotation queue.
+            queue_id (Optional[Union[UUID, str]]): The ID of the annotation queue.
+            rubric_instructions: The rubric instructions for the annotation queue.
+            rubric_items: The feedback configs to assign to this queue's rubric.
+
+        Returns:
+            The created annotation queue object.
+        """
+        body: dict[str, Any] = {
+            "name": name,
+            "description": description,
+            "id": str(queue_id) if queue_id is not None else str(uuid.uuid4()),
+            "rubric_instructions": rubric_instructions,
+        }
+        if rubric_items is not None:
+            body["rubric_items"] = rubric_items
+        response = await self._arequest_with_retries(
+            "POST",
+            "/annotation-queues",
+            json={k: v for k, v in body.items() if v is not None},
+        )
+        ls_utils.raise_for_status_with_text(response)
+        return ls_schemas.AnnotationQueue(
+            **response.json(),
+        )
+
+    async def read_annotation_queue(
+        self, queue_id: ID_TYPE
+    ) -> ls_schemas.AnnotationQueue:
+        """Read an annotation queue with the specified `queue_id`.
+
+        Args:
+            queue_id (Union[UUID, str]): The ID of the annotation queue to read.
+
+        Returns:
+            The annotation queue object.
+        """
+        # TODO: Replace when actual endpoint is added
+        return await self.list_annotation_queues(queue_ids=[queue_id]).__anext__()
+
+    async def update_annotation_queue(
+        self,
+        queue_id: ID_TYPE,
+        *,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        rubric_instructions: Optional[str] = None,
+        rubric_items: Optional[list[ls_schemas.AnnotationQueueRubricItem]] = None,
+    ) -> None:
+        """Update an annotation queue with the specified `queue_id`.
+
+        Args:
+            queue_id (Union[UUID, str]): The ID of the annotation queue to update.
+            name: The new name for the annotation queue.
+            description: The new description for the annotation queue.
+            rubric_instructions: The new rubric instructions for the queue.
+            rubric_items: The feedback configs to assign to this queue's rubric.
+        """
+        body: dict[str, Any] = {}
+        if name is not None:
+            body["name"] = name
+        if description is not None:
+            body["description"] = description
+        if rubric_instructions is not None:
+            body["rubric_instructions"] = rubric_instructions
+        if rubric_items is not None:
+            body["rubric_items"] = rubric_items
+        response = await self._arequest_with_retries(
+            "PATCH",
+            f"/annotation-queues/{ls_client._as_uuid(queue_id, 'queue_id')}",
+            json=body,
+        )
+        ls_utils.raise_for_status_with_text(response)
+
+    async def delete_annotation_queue(self, queue_id: ID_TYPE) -> None:
+        """Delete an annotation queue with the specified `queue_id`.
+
+        Args:
+            queue_id (Union[UUID, str]): The ID of the annotation queue to delete.
+        """
+        response = await self._arequest_with_retries(
+            "DELETE",
+            f"/annotation-queues/{ls_client._as_uuid(queue_id, 'queue_id')}",
+            headers={"Accept": "application/json", **self._client.headers},
+        )
+        ls_utils.raise_for_status_with_text(response)
+
+    async def add_runs_to_annotation_queue(
+        self, queue_id: ID_TYPE, *, run_ids: list[ID_TYPE]
+    ) -> None:
+        """Add runs to an annotation queue with the specified `queue_id`.
+
+        Args:
+            queue_id (Union[UUID, str]): The ID of the annotation queue.
+            run_ids (list[Union[UUID, str]]): The IDs of the runs to be added to the
+                annotation queue.
+        """
+        response = await self._arequest_with_retries(
+            "POST",
+            f"/annotation-queues/{ls_client._as_uuid(queue_id, 'queue_id')}/runs",
+            json=[
+                str(ls_client._as_uuid(id_, f"run_ids[{i}]"))
+                for i, id_ in enumerate(run_ids)
+            ],
+        )
+        ls_utils.raise_for_status_with_text(response)
+
+    async def delete_run_from_annotation_queue(
+        self, queue_id: ID_TYPE, *, run_id: ID_TYPE
+    ) -> None:
+        """Delete a run from an annotation queue with the specified `queue_id` and `run_id`.
+
+        Args:
+            queue_id (Union[UUID, str]): The ID of the annotation queue.
+            run_id (Union[UUID, str]): The ID of the run to be added to the annotation
+                queue.
+        """
+        response = await self._arequest_with_retries(
+            "DELETE",
+            f"/annotation-queues/{ls_client._as_uuid(queue_id, 'queue_id')}/runs/{ls_client._as_uuid(run_id, 'run_id')}",
+        )
+        ls_utils.raise_for_status_with_text(response)
+
+    async def get_run_from_annotation_queue(
+        self, queue_id: ID_TYPE, *, index: int
+    ) -> ls_schemas.RunWithAnnotationQueueInfo:
+        """Get a run from an annotation queue at the specified index.
+
+        Args:
+            queue_id (Union[UUID, str]): The ID of the annotation queue.
+            index: The index of the run to retrieve.
+
+        Returns:
+            The run at the specified index.
+
+        Raises:
+            LangSmithNotFoundError: If the run is not found at the given index.
+            LangSmithError: For other API-related errors.
+        """
+        base_url = f"/annotation-queues/{ls_client._as_uuid(queue_id, 'queue_id')}/run"
+        response = await self._arequest_with_retries("GET", f"{base_url}/{index}")
+        ls_utils.raise_for_status_with_text(response)
+        return ls_schemas.RunWithAnnotationQueueInfo(**response.json())
+
+    # Feedback Config API
+
+    async def create_feedback_config(
+        self,
+        feedback_key: str,
+        *,
+        feedback_config: ls_schemas.FeedbackConfig,
+        is_lower_score_better: Optional[bool] = False,
+    ) -> ls_schemas.FeedbackConfigSchema:
+        """Create a feedback configuration.
+
+        Defines how feedback with a given key should be interpreted.
+        If an identical configuration already exists for the key, it is
+        returned unchanged. If a different configuration already exists
+        for the key, an error is raised.
+
+        Args:
+            feedback_key: The feedback key to configure.
+            feedback_config: The configuration defining type, bounds,
+                and categories.
+            is_lower_score_better: Whether a lower score is considered
+                better. Defaults to False.
+
+        Returns:
+            The created or existing feedback configuration.
+        """
+        body: dict[str, Any] = {
+            "feedback_key": feedback_key,
+            "feedback_config": feedback_config,
+            "is_lower_score_better": is_lower_score_better,
+        }
+        response = await self._arequest_with_retries(
+            "POST",
+            "/feedback-configs",
+            json=body,
+        )
+        ls_utils.raise_for_status_with_text(response)
+        return ls_schemas.FeedbackConfigSchema(**response.json())
+
+    async def list_feedback_configs(
+        self,
+        *,
+        feedback_key: Optional[Sequence[str]] = None,
+        name_contains: Optional[str] = None,
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> AsyncIterator[ls_schemas.FeedbackConfigSchema]:
+        """List feedback configurations.
+
+        Args:
+            feedback_key: Filter by specific feedback keys.
+            name_contains: Filter by substring match on the feedback key.
+            limit: The maximum number of configurations to return.
+            offset: The number of configurations to skip. Defaults to 0.
+
+        Yields:
+            The feedback configurations.
+        """
+        params: dict[str, Any] = {
+            "limit": min(limit, 100) if limit is not None else 100,
+            "offset": offset,
+        }
+        if feedback_key is not None:
+            params["key"] = feedback_key
+        if name_contains is not None:
+            params["name_contains"] = name_contains
+        ix = 0
+        async for config in self._aget_paginated_list(
+            "/feedback-configs", params=params
+        ):
+            yield ls_schemas.FeedbackConfigSchema(**config)
+            ix += 1
+            if limit is not None and ix >= limit:
+                break
+
+    async def update_feedback_config(
+        self,
+        feedback_key: str,
+        *,
+        feedback_config: Optional[ls_schemas.FeedbackConfig] = None,
+        is_lower_score_better: Optional[bool] = None,
+    ) -> ls_schemas.FeedbackConfigSchema:
+        """Update a feedback configuration.
+
+        Only the provided fields will be updated; others remain unchanged.
+
+        Args:
+            feedback_key: The feedback key of the configuration to update.
+            feedback_config: The new configuration values.
+            is_lower_score_better: Whether a lower score is considered
+                better.
+
+        Returns:
+            The updated feedback configuration.
+        """
+        body: dict[str, Any] = {
+            "feedback_key": feedback_key,
+        }
+        if feedback_config is not None:
+            body["feedback_config"] = feedback_config
+        if is_lower_score_better is not None:
+            body["is_lower_score_better"] = is_lower_score_better
+        response = await self._arequest_with_retries(
+            "PATCH",
+            "/feedback-configs",
+            json=body,
+        )
+        ls_utils.raise_for_status_with_text(response)
+        return ls_schemas.FeedbackConfigSchema(**response.json())
+
+    async def delete_feedback_config(self, feedback_key: str) -> None:
+        """Delete a feedback configuration.
+
+        This performs a soft delete. The configuration can be recreated
+        later with the same key.
+
+        Args:
+            feedback_key: The feedback key of the configuration to delete.
+        """
+        response = await self._arequest_with_retries(
+            "DELETE",
+            "/feedback-configs",
+            params={"feedback_key": feedback_key},
+        )
+        ls_utils.raise_for_status_with_text(response)
+
+    async def _get_settings(self) -> ls_schemas.LangSmithSettings:
+        """Get the settings for the current tenant.
+
+        Returns:
+            dict: The settings for the current tenant.
+        """
+        if self._settings is None:
+            response = await self._arequest_with_retries("GET", "/settings")
+            ls_utils.raise_for_status_with_text(response)
+            self._settings = ls_schemas.LangSmithSettings(**response.json())
+
+        return self._settings
+
+    async def _current_tenant_is_owner(self, owner: str) -> bool:
+        """Check if the current workspace has the same handle as owner.
+
+        Args:
+            owner: The owner to check against.
+
+        Returns:
+            bool: `True` if the current tenant is the owner, `False` otherwise.
+        """
+        settings = await self._get_settings()
+        return owner == "-" or settings.tenant_handle == owner
+
+    async def _owner_conflict_error(
+        self, action: str, owner: str
+    ) -> ls_utils.LangSmithUserError:
+        settings = await self._get_settings()
+        return ls_utils.LangSmithUserError(
+            f"Cannot {action} for another tenant.\n"
+            f"Current tenant: {settings.tenant_handle},\n"
+            f"Requested tenant: {owner}"
+        )
+
+    async def _get_latest_commit_hash(
+        self, prompt_owner_and_name: str, limit: int = 1, offset: int = 0
+    ) -> Optional[str]:
+        """Get the latest commit hash for a prompt.
+
+        Args:
+            prompt_owner_and_name: The owner and name of the prompt.
+            limit: The maximum number of commits to fetch.
+            offset: The number of commits to skip.
+
+        Returns:
+            The latest commit hash, or `None` if no commits are found.
+        """
+        response = await self._arequest_with_retries(
+            "GET",
+            f"/commits/{prompt_owner_and_name}/",
+            params={"limit": limit, "offset": offset},
+        )
+        commits = response.json()["commits"]
+        return commits[0]["commit_hash"] if commits else None
+
+    async def _create_commit_tags(
+        self, prompt_owner_and_name: str, commit_id: str, tags: Union[str, list[str]]
+    ) -> None:
+        """Update tags for a prompt commit.
+
+        Args:
+            prompt_owner_and_name: The owner and name of the prompt in the format 'owner/repo'.
+            commit_id: The commit ID to tag.
+            tags: A single tag or list of tags to apply to the commit.
+
+        Raises:
+            requests.exceptions.HTTPError: If the request fails.
+        """
+        # Normalize tags to always be a list
+        tag_list = [tags] if isinstance(tags, str) else tags
+
+        # Post each tag individually since there's no bulk endpoint
+        async def create_tag(tag: str):
+            payload = {
+                "tag_name": tag,
+                "commit_id": commit_id,
+            }
+            response = await self._arequest_with_retries(
+                "POST", f"/repos/{prompt_owner_and_name}/tags", json=payload
+            )
+            ls_utils.raise_for_status_with_text(response)
+
+        await asyncio.gather(*[create_tag(tag) for tag in tag_list])
+
+    async def _like_or_unlike_prompt(
+        self, prompt_identifier: str, like: bool
+    ) -> dict[str, int]:
+        """Like or unlike a prompt.
+
+        Args:
+            prompt_identifier: The identifier of the prompt.
+            like: True to like the prompt, False to unlike it.
+
+        Returns:
+            A dictionary with the key `'likes'` and the count of likes as the value.
+
+        Raises:
+            requests.exceptions.HTTPError: If the prompt is not found or another error
+                occurs.
+        """
+        owner, prompt_name, _ = ls_utils.parse_prompt_identifier(prompt_identifier)
+        response = await self._arequest_with_retries(
+            "POST", f"/likes/{owner}/{prompt_name}", json={"like": like}
+        )
+        response.raise_for_status()
+        return response.json()
+
+    async def _get_prompt_url(self, prompt_identifier: str) -> str:
+        """Get a URL for a prompt.
+
+        Args:
+            prompt_identifier: The identifier of the prompt.
+
+        Returns:
+            The URL for the prompt.
+
+        """
+        owner, prompt_name, commit_hash = ls_utils.parse_prompt_identifier(
+            prompt_identifier
+        )
+
+        if not (await self._current_tenant_is_owner(owner)):
+            return f"{self._host_url}/hub/{owner}/{prompt_name}:{commit_hash[:8]}"
+
+        settings = await self._get_settings()
+        return (
+            f"{self._host_url}/prompts/{prompt_name}/{commit_hash[:8]}"
+            f"?organizationId={settings.id}"
+        )
+
+    async def _prompt_exists(self, prompt_identifier: str) -> bool:
+        """Check if a prompt exists.
+
+        Args:
+            prompt_identifier: The identifier of the prompt.
+
+        Returns:
+            `True` if the prompt exists, `False` otherwise.
+        """
+        prompt = await self.get_prompt(prompt_identifier)
+        return True if prompt else False
+
+    async def like_prompt(self, prompt_identifier: str) -> dict[str, int]:
+        """Like a prompt.
+
+        Args:
+            prompt_identifier: The identifier of the prompt.
+
+        Returns:
+            A dictionary with the key `'likes'` and the count of likes as the value.
+        """
+        return await self._like_or_unlike_prompt(prompt_identifier, like=True)
+
+    async def unlike_prompt(self, prompt_identifier: str) -> dict[str, int]:
+        """Unlike a prompt.
+
+        Args:
+            prompt_identifier: The identifier of the prompt.
+
+        Returns:
+            A dictionary with the key `'likes'` and the count of likes as the value.
+        """
+        return await self._like_or_unlike_prompt(prompt_identifier, like=False)
+
+    async def list_prompts(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        is_public: Optional[bool] = None,
+        is_archived: Optional[bool] = False,
+        sort_field: ls_schemas.PromptSortField = ls_schemas.PromptSortField.updated_at,
+        sort_direction: Literal["desc", "asc"] = "desc",
+        query: Optional[str] = None,
+    ) -> ls_schemas.ListPromptsResponse:
+        """List prompts with pagination.
+
+        Args:
+            limit: The maximum number of prompts to return.
+            offset: The number of prompts to skip.
+            is_public: Filter prompts by if they are public.
+            is_archived: Filter prompts by if they are archived.
+            sort_field (PromptSortField): The field to sort by.
+
+                Defaults to `'updated_at'`.
+            sort_direction: The order to sort by.
+            query: Filter prompts by a search query.
+
+        Returns:
+            A response object containing the list of prompts.
+        """
+        params = {
+            "limit": limit,
+            "offset": offset,
+            "is_public": (
+                "true" if is_public else "false" if is_public is not None else None
+            ),
+            "is_archived": "true" if is_archived else "false",
+            "sort_field": (
+                sort_field.value
+                if isinstance(sort_field, ls_schemas.PromptSortField)
+                else sort_field
+            ),
+            "sort_direction": sort_direction,
+            "query": query,
+            "match_prefix": "true" if query else None,
+        }
+
+        response = await self._arequest_with_retries(
+            "GET", "/repos/", params=_exclude_none(params)
+        )
+        return ls_schemas.ListPromptsResponse(**response.json())
+
+    async def get_prompt(self, prompt_identifier: str) -> Optional[ls_schemas.Prompt]:
+        """Get a specific prompt by its identifier.
+
+        Args:
+            prompt_identifier: The identifier of the prompt.
+
+                The identifier should be in the format `'prompt_name'` or
+                `'owner/prompt_name'`.
+
+        Returns:
+            The prompt object.
+
+        Raises:
+            requests.exceptions.HTTPError: If the prompt is not found or
+                another error occurs.
+        """
+        owner, prompt_name, _ = ls_utils.parse_prompt_identifier(prompt_identifier)
+        try:
+            response = await self._arequest_with_retries(
+                "GET",
+                f"/repos/{owner}/{prompt_name}",
+            )
+            return ls_schemas.Prompt(**response.json()["repo"])
+        except ls_utils.LangSmithNotFoundError:
+            return None
+
+    async def create_prompt(
+        self,
+        prompt_identifier: str,
+        *,
+        description: Optional[str] = None,
+        readme: Optional[str] = None,
+        tags: Optional[Sequence[str]] = None,
+        is_public: bool = False,
+    ) -> ls_schemas.Prompt:
+        """Create a new prompt.
+
+        Does not attach prompt object, just creates an empty prompt.
+
+        Args:
+            prompt_identifier: The identifier of the prompt.
+
+                The identifier should be in the format of `owner/name:hash`,
+                `name:hash`, `owner/name`, or `name`
+            description: A description of the prompt.
+            readme: A readme for the prompt.
+            tags: A list of tags for the prompt.
+            is_public: Whether the prompt should be public.
+
+        Returns:
+            The created `Prompt` object.
+
+        Raises:
+            ValueError: If the current tenant is not the owner.
+            HTTPError: If the server request fails.
+        """
+        settings = await self._get_settings()
+        if is_public and not settings.tenant_handle:
+            raise ls_utils.LangSmithUserError(
+                "Cannot create a public prompt without first\n"
+                "creating a LangChain Hub handle. "
+                "You can add a handle by creating a public prompt at:\n"
+                "https://smith.langchain.com/prompts"
+            )
+
+        owner, prompt_name, _ = ls_utils.parse_prompt_identifier(prompt_identifier)
+        if not (await self._current_tenant_is_owner(owner=owner)):
+            raise (await self._owner_conflict_error("create a prompt", owner))
+
+        json: dict[str, Union[str, bool, Sequence[str]]] = {
+            "repo_handle": prompt_name,
+            "description": description or "",
+            "readme": readme or "",
+            "tags": tags or [],
+            "is_public": is_public,
+        }
+
+        response = await self._arequest_with_retries("POST", "/repos/", json=json)
+        response.raise_for_status()
+        return ls_schemas.Prompt(**response.json()["repo"])
+
+    async def create_commit(
+        self,
+        prompt_identifier: str,
+        object: Any,
+        *,
+        parent_commit_hash: Optional[str] = None,
+        tags: Optional[str | list[str]] = None,
+        description: Optional[str] = None,
+    ) -> str:
+        """Create a commit for an existing prompt.
+
+        Args:
+            prompt_identifier: The identifier of the prompt.
+            object: The LangChain object to commit.
+            parent_commit_hash: The hash of the parent commit.
+
+                Defaults to latest commit.
+            tags: A single tag or list of tags to apply to the commit.
+
+                Defaults to `None`.
+            description: Optional human-readable description for the commit
+                (max 1000 chars). Defaults to `None`.
+
+        Returns:
+            The url of the prompt commit.
+
+        Raises:
+            HTTPError: If the server request fails.
+            ValueError: If the prompt does not exist.
+        """
+        if not (await self._prompt_exists(prompt_identifier)):
+            raise ls_utils.LangSmithNotFoundError(
+                "Prompt does not exist, you must create it first."
+            )
+
+        # Check if object is already a serialized LangChain manifest
+        prepped = ls_client.prep_obj_for_push(object)
+        if isinstance(prepped, dict) and "id" in prepped and "lc" in prepped:
+            manifest_dict = prepped
+        else:
+            try:
+                from langchain_core.load import dumps
+            except ImportError:
+                raise ImportError(
+                    "The client.create_commit function requires the langchain-core"
+                    "package to run.\nInstall with `pip install langchain-core`"
+                )
+
+            json_object = dumps(prepped)
+            manifest_dict = json.loads(json_object)
+
+        owner, prompt_name, _ = ls_utils.parse_prompt_identifier(prompt_identifier)
+        prompt_owner_and_name = f"{owner}/{prompt_name}"
+
+        if parent_commit_hash == "latest" or parent_commit_hash is None:
+            parent_commit_hash = await self._get_latest_commit_hash(
+                prompt_owner_and_name
+            )
+
+        request_dict: dict[str, Any] = {
+            "parent_commit": parent_commit_hash,
+            "manifest": manifest_dict,
+        }
+        if description is not None:
+            request_dict["description"] = description
+        response = await self._arequest_with_retries(
+            "POST", f"/commits/{prompt_owner_and_name}", json=request_dict
+        )
+
+        commit_json = response.json()["commit"]
+        commit_hash = commit_json["commit_hash"]
+        commit_id = commit_json["id"]
+        if tags:
+            await self._create_commit_tags(prompt_owner_and_name, commit_id, tags)
+
+        return await self._get_prompt_url(f"{prompt_owner_and_name}:{commit_hash}")
+
+    async def update_prompt(
+        self,
+        prompt_identifier: str,
+        *,
+        description: Optional[str] = None,
+        readme: Optional[str] = None,
+        tags: Optional[Sequence[str]] = None,
+        is_public: Optional[bool] = None,
+        is_archived: Optional[bool] = None,
+    ) -> dict[str, Any]:
+        """Update a prompt's metadata.
+
+        To update the content of a prompt, use push_prompt or create_commit instead.
+
+        Args:
+            prompt_identifier: The identifier of the prompt to update.
+            description: New description for the prompt.
+            readme: New readme for the prompt.
+            tags: New list of tags for the prompt.
+            is_public: New public status for the prompt.
+            is_archived: New archived status for the prompt.
+
+        Returns:
+            The updated prompt data as returned by the server.
+
+        Raises:
+            ValueError: If the `prompt_identifier` is empty.
+            HTTPError: If the server request fails.
+        """
+        settings = await self._get_settings()
+        if is_public and not settings.tenant_handle:
+            raise ValueError(
+                "Cannot create a public prompt without first\n"
+                "creating a LangChain Hub handle. "
+                "You can add a handle by creating a public prompt at:\n"
+                "https://smith.langchain.com/prompts"
+            )
+
+        json: dict[str, Union[str, bool, Sequence[str]]] = {}
+
+        if description is not None:
+            json["description"] = description
+        if readme is not None:
+            json["readme"] = readme
+        if is_public is not None:
+            json["is_public"] = is_public
+        if is_archived is not None:
+            json["is_archived"] = is_archived
+        if tags is not None:
+            json["tags"] = tags
+
+        owner, prompt_name, _ = ls_utils.parse_prompt_identifier(prompt_identifier)
+        response = await self._arequest_with_retries(
+            "PATCH", f"/repos/{owner}/{prompt_name}", json=json
+        )
+        response.raise_for_status()
+        return response.json()
+
+    async def delete_prompt(self, prompt_identifier: str) -> None:
+        """Delete a prompt.
+
+        Args:
+            prompt_identifier: The identifier of the prompt to delete.
+
+        Returns:
+            `True` if the prompt was successfully deleted, `False` otherwise.
+
+        Raises:
+            ValueError: If the current tenant is not the owner of the prompt.
+        """
+        owner, prompt_name, _ = ls_utils.parse_prompt_identifier(prompt_identifier)
+        if not (await self._current_tenant_is_owner(owner)):
+            raise (await self._owner_conflict_error("delete a prompt", owner))
+
+        response = await self._arequest_with_retries(
+            "DELETE", f"/repos/{owner}/{prompt_name}"
+        )
+        response.raise_for_status()
+
+    def _get_cache_key(
+        self, prompt_identifier: str, include_model: Optional[bool] = False
+    ) -> str:
+        """Generate a cache key for a prompt.
+
+        Args:
+            prompt_identifier: The prompt identifier.
+            include_model: Whether model info is included.
+
+        Returns:
+            The cache key string.
+        """
+        suffix = ":with_model" if include_model else ""
+        return f"{prompt_identifier}{suffix}"
+
+    async def _afetch_prompt_from_api(
+        self,
+        prompt_identifier: str,
+        include_model: Optional[bool] = False,
+    ) -> ls_schemas.PromptCommit:
+        """Fetch a prompt from the API (no caching).
+
+        Args:
+            prompt_identifier: The prompt identifier.
+            include_model: Whether to include model information.
+
+        Returns:
+            The `PromptCommit` object.
+        """
+        owner, prompt_name, commit_hash = ls_utils.parse_prompt_identifier(
+            prompt_identifier
+        )
+        response = await self._arequest_with_retries(
+            "GET",
+            (
+                f"/commits/{owner}/{prompt_name}/{commit_hash}"
+                f"{'?include_model=true' if include_model else ''}"
+            ),
+        )
+        return ls_schemas.PromptCommit(
+            **{"owner": owner, "repo": prompt_name, **response.json()}
+        )
+
+    async def pull_prompt_commit(
+        self,
+        prompt_identifier: str,
+        *,
+        include_model: Optional[bool] = False,
+        skip_cache: bool = False,
+        dangerously_pull_public_prompt: bool = False,
+    ) -> ls_schemas.PromptCommit:
+        """Pull a prompt object from the LangSmith API.
+
+        Public prompts referenced by owner/name cross a trust boundary because the
+        prompt manifest may contain serialized LangChain objects and configuration
+        that affect runtime behavior. For example, a prompt can intentionally
+        configure a model with a custom base URL, headers, model name, or other
+        constructor arguments. These are supported features, but they also mean
+        the prompt contents should be treated as executable configuration rather
+        than plain text.
+
+        Set `dangerously_pull_public_prompt=True` only after reviewing and
+        trusting the prompt contents, not merely the publishing account. Prompts
+        from your own or your organization's account can still be unsafe if that
+        account or prompt was compromised.
+
+        Args:
+            prompt_identifier: The identifier of the prompt.
+            include_model: Whether to include model information.
+            skip_cache: Whether to skip the prompt cache. Defaults to `False`.
+            dangerously_pull_public_prompt: Set to `True` to allow pulling a
+                public prompt by owner/name, for example `username/promptname`.
+                Defaults to `False`.
+
+        Returns:
+            The prompt object.
+
+        Raises:
+            ValueError: If no commits are found for the prompt.
+        """
+        ls_client._validate_public_prompt_pull(
+            prompt_identifier,
+            dangerously_pull_public_prompt=dangerously_pull_public_prompt,
+        )
+
+        # Create refresh function bound to this specific prompt
+        refresh_func = partial(
+            self._afetch_prompt_from_api, prompt_identifier, include_model
+        )
+
+        # Try cache first if enabled
+        if not skip_cache and self._cache is not None:
+            cache_key = self._get_cache_key(prompt_identifier, include_model)
+            cached = self._cache.get(cache_key, refresh_func)
+            if cached is not None:
+                return cached
+
+        # Cache miss or cache disabled - fetch from API
+        result = await refresh_func()
+
+        # Store in cache
+        if not skip_cache and self._cache is not None:
+            cache_key = self._get_cache_key(prompt_identifier, include_model)
+            await self._cache.aset(cache_key, result, refresh_func)
+
+        return result
+
+    async def list_prompt_commits(
+        self,
+        prompt_identifier: str,
+        *,
+        limit: Optional[int] = None,
+        offset: int = 0,
+        include_model: bool = False,
+    ) -> AsyncGenerator[ls_schemas.ListedPromptCommit, None]:
+        """List commits for a given prompt.
+
+        Args:
+            prompt_identifier: The identifier of the prompt in the format `owner/repo_name`.
+            limit: The maximum number of commits to return.
+
+                If `None`, returns all commits.
+            offset: The number of commits to skip before starting to return results.
+            include_model: Whether to include the model information in the commit data.
+
+        Yields:
+            A `ListedPromptCommit` object for each commit.
+
+        !!! note
+
+            This method uses pagination to retrieve commits. It will make multiple API calls if necessary to retrieve all commits
+            or up to the specified limit.
+        """
+        owner, prompt_name, _ = ls_utils.parse_prompt_identifier(prompt_identifier)
+
+        params = {
+            "limit": min(100, limit) if limit is not None else limit,
+            "offset": offset,
+            "include_model": include_model,
+        }
+        i = 0
+        while True:
+            params["offset"] = offset
+            response = await self._arequest_with_retries(
+                "GET",
+                f"/commits/{owner}/{prompt_name}/",
+                params=params,
+            )
+            val = response.json()
+            items = val["commits"]
+            total = val["total"]
+
+            if not items:
+                break
+            for it in items:
+                if limit is not None and i >= limit:
+                    return  # Stop iteration if we've reached the limit
+                yield ls_schemas.ListedPromptCommit(
+                    **{"owner": owner, "repo": prompt_name, **it}
+                )
+                i += 1
+
+            offset += len(items)
+            if offset >= total:
+                break
+
+    async def pull_prompt(
+        self,
+        prompt_identifier: str,
+        *,
+        include_model: bool | None = False,
+        secrets: dict[str, str] | None = None,
+        secrets_from_env: bool = False,
+        skip_cache: bool = False,
+        dangerously_pull_public_prompt: bool = False,
+    ) -> Any:
+        """Pull a prompt and return it as a LangChain `PromptTemplate`.
+
+        This method requires [`langchain-core`](https://pypi.org/project/langchain-core).
+
+        Args:
+            prompt_identifier: The identifier of the prompt.
+            include_model: Whether to include model configuration in the loaded
+                prompt.
+            secrets: A map of secrets to use for explicit serialized LangChain secret
+                references in the manifest, e.g. `{'OPENAI_API_KEY': 'sk-...'}`.
+
+                If a manifest secret reference is not found in the map, it will be
+                loaded from the environment only if `secrets_from_env` is `True`.
+                Deserialized model integrations may still use their own
+                environment-based credential defaults during initialization.
+            secrets_from_env: Whether explicit serialized LangChain secret
+                references in the manifest may be loaded from environment variables
+                during deserialization.
+            skip_cache: Whether to skip the prompt cache. Defaults to `False`.
+            dangerously_pull_public_prompt: Set to `True` to allow pulling a
+                public prompt by owner/name (for example, `username/promptname`).
+                Only do this for trusted prompts. Defaults to `False`.
+
+        Returns:
+            The prompt object in the specified format.
+
+        !!! warning "Security note"
+
+            Pulled prompts should be treated as executable configuration, not plain
+            text.
+
+            The `secrets` and `secrets_from_env` arguments only control explicit
+            serialized LangChain secret references in the manifest. They do not
+            prevent deserialized model integrations from using their own
+            environment-based credential defaults during initialization. For example,
+            a deserialized OpenAI chat model may still use `OPENAI_API_KEY` from the
+            environment if its constructor supports that default.
+
+            Avoid pulling public prompts or prompts outside your own organization
+            unless you have reviewed and trust their contents. When you do pull a
+            trusted external prompt, prefer pinning to a specific commit SHA rather
+            than following a mutable latest version. This is especially important
+            when `include_model=True`.
+
+        !!! warning "Behavior changed in `langsmith` 0.5.1"
+
+            Updated to take arguments `secrets` and `secrets_from_env` which default
+            to None and False, respectively.
+
+            By default, explicit serialized LangChain secret references in a pulled
+            manifest are not resolved from environment variables unless you specify
+            `secrets_from_env=True`.
+
+            These updates were made to remediate vulnerability
+            [GHSA-c67j-w6g6-q2cm](https://github.com/langchain-ai/langchain/security/advisories/GHSA-c67j-w6g6-q2cm)
+            in the `langchain-core` package which this method (but not the entire
+            langsmith package) depends on.
+        """
+        prompt_object = await self.pull_prompt_commit(
+            prompt_identifier,
+            include_model=include_model,
+            skip_cache=skip_cache,
+            dangerously_pull_public_prompt=dangerously_pull_public_prompt,
+        )
+        return ls_client._process_prompt_manifest(
+            prompt_object,
+            include_model=include_model,
+            secrets=secrets,
+            secrets_from_env=secrets_from_env,
+        )
+
+    async def push_prompt(
+        self,
+        prompt_identifier: str,
+        *,
+        object: Optional[Any] = None,
+        parent_commit_hash: str = "latest",
+        is_public: Optional[bool] = None,
+        description: Optional[str] = None,
+        readme: Optional[str] = None,
+        tags: Optional[Sequence[str]] = None,
+        commit_tags: Optional[str | list[str]] = None,
+        commit_description: Optional[str] = None,
+    ) -> str:
+        """Push a prompt to the LangSmith API.
+
+        Can be used to update prompt metadata or prompt content.
+
+        If the prompt does not exist, it will be created.
+
+        If the prompt exists, it will be updated.
+
+        Args:
+            prompt_identifier: The identifier of the prompt.
+            object: The LangChain object to push.
+            parent_commit_hash: The parent commit hash.
+            is_public: Whether the prompt should be public.
+
+                If `None` (default), the current visibility status is maintained for
+                existing prompts.
+
+                For new prompts, `None` defaults to private.
+
+                Set to `True` to make public, or `False` to make private.
+            description: A description of the prompt.
+
+                Defaults to an empty string.
+            readme: A readme for the prompt.
+
+                Defaults to an empty string.
+            tags: A list of tags for the prompt.
+
+                Defaults to an empty list.
+            commit_tags: A single tag or list of tags for the prompt commit.
+
+                Defaults to an empty list.
+            commit_description: Optional human-readable description for the commit
+                (max 1000 chars). Defaults to `None`.
+
+        Returns:
+            The URL of the prompt.
+        """
+        # Create or update prompt metadata
+        if await self._prompt_exists(prompt_identifier):
+            if any(
+                param is not None for param in [is_public, description, readme, tags]
+            ):
+                await self.update_prompt(
+                    prompt_identifier,
+                    description=description,
+                    readme=readme,
+                    tags=tags,
+                    is_public=is_public,
+                )
+        else:
+            await self.create_prompt(
+                prompt_identifier,
+                is_public=is_public if is_public is not None else False,
+                description=description,
+                readme=readme,
+                tags=tags,
+            )
+
+        if object is None:
+            return await self._get_prompt_url(prompt_identifier=prompt_identifier)
+
+        # Create a commit with the new manifest
+        url = await self.create_commit(
+            prompt_identifier,
+            object,
+            parent_commit_hash=parent_commit_hash,
+            tags=commit_tags,
+            description=commit_description,
+        )
+        return url
+
+    async def pull_agent(
+        self,
+        identifier: str,
+        *,
+        version: Optional[str] = None,
+    ) -> ls_schemas.AgentContext:
+        """Pull an agent from Hub.
+
+        Args:
+            identifier: Repo identifier (owner/name:hash, owner/name, or name).
+            version: Commit hash or tag; overrides any hash in identifier.
+
+        Returns:
+            AgentContext: The agent snapshot.
+        """
+        data = await self._pull_hub_directory(identifier, "agent", version=version)
+        return ls_schemas.AgentContext.model_validate(data)
+
+    async def push_agent(
+        self,
+        identifier: str,
+        *,
+        files: dict[str, Optional[ls_schemas.Entry]],
+        parent_commit: Optional[str] = None,
+        description: Optional[str] = None,
+        readme: Optional[str] = None,
+        tags: Optional[Sequence[str]] = None,
+        is_public: Optional[bool] = None,
+    ) -> str:
+        """Push an agent to Hub, creating the repo if it does not exist."""
+        return await self._push_hub_directory(
+            identifier,
+            "agent",
+            files=files,
+            parent_commit=parent_commit,
+            description=description,
+            readme=readme,
+            tags=tags,
+            is_public=is_public,
+        )
+
+    async def pull_skill(
+        self,
+        identifier: str,
+        *,
+        version: Optional[str] = None,
+    ) -> ls_schemas.SkillContext:
+        """Pull a skill from Hub."""
+        data = await self._pull_hub_directory(identifier, "skill", version=version)
+        return ls_schemas.SkillContext.model_validate(data)
+
+    async def push_skill(
+        self,
+        identifier: str,
+        *,
+        files: dict[str, Optional[ls_schemas.Entry]],
+        parent_commit: Optional[str] = None,
+        description: Optional[str] = None,
+        readme: Optional[str] = None,
+        tags: Optional[Sequence[str]] = None,
+        is_public: Optional[bool] = None,
+    ) -> str:
+        """Push a skill to Hub."""
+        return await self._push_hub_directory(
+            identifier,
+            "skill",
+            files=files,
+            parent_commit=parent_commit,
+            description=description,
+            readme=readme,
+            tags=tags,
+            is_public=is_public,
+        )
+
+    async def delete_agent(self, identifier: str) -> None:
+        """Delete an agent and its owned child file repos."""
+        await self._delete_hub_directory(identifier)
+
+    async def delete_skill(self, identifier: str) -> None:
+        """Delete a skill and its owned child file repos."""
+        await self._delete_hub_directory(identifier)
+
+    async def agent_exists(self, identifier: str) -> bool:
+        """Check if an agent repo exists."""
+        owner, name, _ = ls_utils.parse_hub_identifier(identifier)
+        return await self._hub_repo_exists(owner, name)
+
+    async def skill_exists(self, identifier: str) -> bool:
+        """Check if a skill repo exists."""
+        owner, name, _ = ls_utils.parse_hub_identifier(identifier)
+        return await self._hub_repo_exists(owner, name)
+
+    async def list_agents(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        is_public: Optional[bool] = None,
+        is_archived: Optional[bool] = False,
+        query: Optional[str] = None,
+    ) -> ls_schemas.ListPromptsResponse:
+        """List agents with pagination."""
+        return await self._list_hub_repos(
+            "agent",
+            limit=limit,
+            offset=offset,
+            is_public=is_public,
+            is_archived=is_archived,
+            query=query,
+        )
+
+    async def list_skills(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        is_public: Optional[bool] = None,
+        is_archived: Optional[bool] = False,
+        query: Optional[str] = None,
+    ) -> ls_schemas.ListPromptsResponse:
+        """List skills with pagination."""
+        return await self._list_hub_repos(
+            "skill",
+            limit=limit,
+            offset=offset,
+            is_public=is_public,
+            is_archived=is_archived,
+            query=query,
+        )
+
+    async def _pull_hub_directory(
+        self,
+        identifier: str,
+        repo_type: Literal["agent", "skill"],
+        *,
+        version: Optional[str],
+    ) -> dict[str, Any]:
+        """Fetch hub directory payload, merged with owner/repo from identifier."""
+        owner, name, commit = ls_utils.parse_hub_identifier(identifier)
+        target = (
+            version if version is not None else (commit if commit != "latest" else None)
+        )
+        params: dict[str, Any] = {"repo_type": repo_type}
+        if target:
+            params["commit"] = target
+        response = await self._arequest_with_retries(
+            "GET",
+            f"{PLATFORM_HUB}/{owner}/{name}/directories",
+            params=params,
+        )
+        return response.json()
+
+    async def _push_hub_directory(
+        self,
+        identifier: str,
+        repo_type: Literal["agent", "skill"],
+        *,
+        files: dict[str, Any],
+        parent_commit: Optional[str],
+        description: Optional[str],
+        readme: Optional[str],
+        tags: Optional[Sequence[str]],
+        is_public: Optional[bool],
+    ) -> str:
+        """Create a hub directory commit, creating the repo if it does not exist."""
+        validate_parent_commit(parent_commit)
+
+        owner, name, _ = ls_utils.parse_hub_identifier(identifier)
+        if not (await self._current_tenant_is_owner(owner)):
+            raise (await self._owner_conflict_error(f"push {repo_type}", owner))
+
+        if await self._hub_repo_exists(owner, name):
+            if any(v is not None for v in (description, readme, tags, is_public)):
+                await self._update_hub_repo_metadata(
+                    owner,
+                    name,
+                    description=description,
+                    readme=readme,
+                    tags=tags,
+                    is_public=is_public,
+                )
+        else:
+            if not REPO_HANDLE_PATTERN.match(name):
+                raise ls_utils.LangSmithUserError(
+                    f"Invalid repo_handle {name!r}: "
+                    f"must match {REPO_HANDLE_PATTERN.pattern}."
+                )
+            await self._create_hub_repo(
+                name,
+                repo_type,
+                description=description,
+                readme=readme,
+                tags=tags,
+                is_public=bool(is_public),
+            )
+
+        request_files: dict[str, Optional[dict[str, Any]]] = {}
+        for path, entry in files.items():
+            if entry is None:
+                request_files[path] = None
+            else:
+                request_files[path] = entry.model_dump(exclude_none=True)
+
+        body: dict[str, Any] = {"files": request_files}
+        if parent_commit is not None:
+            body["parent_commit"] = parent_commit
+
+        response = await self._arequest_with_retries(
+            "POST",
+            f"{PLATFORM_HUB}/{owner}/{name}/directories/commits",
+            json=body,
+        )
+        commit_hash = response.json()["commit"]["commit_hash"]
+        tenant_handle = (
+            (await self._get_settings()).tenant_handle if owner == "-" else None
+        )
+        owner_for_url = resolve_owner_for_url(owner, tenant_handle)
+        return build_commit_url(self._host_url, owner_for_url, name, commit_hash)
+
+    async def _delete_hub_directory(self, identifier: str) -> None:
+        """Delete a hub directory repo."""
+        owner, name, _ = ls_utils.parse_hub_identifier(identifier)
+        if not (await self._current_tenant_is_owner(owner)):
+            raise (await self._owner_conflict_error("delete", owner))
+        await self._arequest_with_retries(
+            "DELETE",
+            f"{PLATFORM_HUB}/{owner}/{name}/directories",
+        )
+
+    async def _list_hub_repos(
+        self,
+        repo_type: Literal["agent", "skill"],
+        *,
+        limit: int,
+        offset: int,
+        is_public: Optional[bool],
+        is_archived: Optional[bool],
+        query: Optional[str],
+    ) -> ls_schemas.ListPromptsResponse:
+        """List hub repos filtered by type.
+
+        Returns ``ListPromptsResponse`` because ``/repos`` is polymorphic — the
+        list shape is shared across prompt, agent, and skill repos.
+        """
+        params: dict[str, Any] = {
+            "limit": limit,
+            "offset": offset,
+            "repo_type": repo_type,
+            "is_archived": "true" if is_archived else "false",
+        }
+        if is_public is not None:
+            params["is_public"] = "true" if is_public else "false"
+        if query:
+            params["query"] = query
+            params["match_prefix"] = "true"
+        response = await self._arequest_with_retries("GET", HUB, params=params)
+        return ls_schemas.ListPromptsResponse(**response.json())
+
+    async def _hub_repo_exists(self, owner: str, name: str) -> bool:
+        """Check if a hub repo exists."""
+        try:
+            await self._arequest_with_retries("GET", f"{HUB}/{owner}/{name}")
+            return True
+        except ls_utils.LangSmithNotFoundError:
+            return False
+
+    async def _create_hub_repo(
+        self,
+        name: str,
+        repo_type: Literal["agent", "skill"],
+        *,
+        description: Optional[str],
+        readme: Optional[str],
+        tags: Optional[Sequence[str]],
+        is_public: bool,
+    ) -> None:
+        """Create a new hub repo of the given type."""
+        body: dict[str, Any] = {
+            "repo_handle": name,
+            "repo_type": repo_type,
+            "is_public": is_public,
+        }
+        if description is not None:
+            body["description"] = description
+        if readme is not None:
+            body["readme"] = readme
+        if tags is not None:
+            body["tags"] = list(tags)
+        try:
+            await self._arequest_with_retries("POST", "/repos/", json=body)
+        except ls_utils.LangSmithConflictError:
+            pass
+
+    async def _update_hub_repo_metadata(
+        self,
+        owner: str,
+        name: str,
+        *,
+        description: Optional[str],
+        readme: Optional[str],
+        tags: Optional[Sequence[str]],
+        is_public: Optional[bool],
+    ) -> None:
+        """Patch hub repo metadata fields that were explicitly provided."""
+        body: dict[str, Any] = {}
+        if description is not None:
+            body["description"] = description
+        if readme is not None:
+            body["readme"] = readme
+        if tags is not None:
+            body["tags"] = list(tags)
+        if is_public is not None:
+            body["is_public"] = is_public
+        if body:
+            await self._arequest_with_retries(
+                "PATCH", f"{HUB}/{owner}/{name}", json=body
+            )
+
+
+def _exclude_none(d: dict) -> dict:
+    """Exclude `None` values from a dictionary."""
+    return {k: v for k, v in d.items() if v is not None}
