@@ -3,6 +3,11 @@
   "hostRequirements": {
     "cpus": 4
   },
+  "features": {
+    "ghcr.io/devcontainers/features/nvidia-cuda:1": {
+      "installCudnn": true
+    }
+  },
   "waitFor": "onCreateCommand",
   "updateContentCommand": "python3 -m pip install -r requirements.txt",
   "postCreateCommand": "",
