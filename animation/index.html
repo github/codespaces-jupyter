@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hero vs Thalapathy</title>
+<style>
+  :root { --bg: #0e0f14; --panel: #1a1c24; --text: #f3f1ea; --accent: #ffb400; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+         display: flex; flex-direction: column; align-items: center; padding: 16px; gap: 12px; }
+  h1 { margin: 0; font-size: 20px; letter-spacing: .08em; }
+  .stage { position: relative; width: 100%; max-width: 960px; }
+  canvas { width: 100%; height: auto; display: block; border-radius: 10px; background: #000; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 960px; }
+  button, label.btn { background: var(--panel); color: var(--text); border: 1px solid #333846;
+         border-radius: 8px; padding: 8px 14px; font-size: 14px; cursor: pointer; }
+  button:hover, label.btn:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 700; }
+  input[type=text] { background: var(--panel); color: var(--text); border: 1px solid #333846;
+         border-radius: 8px; padding: 8px 10px; font-size: 14px; width: 130px; }
+  input[type=file] { display: none; }
+  .hint { font-size: 12px; opacity: .6; text-align: center; }
+</style>
+</head>
+<body>
+<h1>HERO vs THALAPATHY</h1>
+<div class="stage"><canvas id="c" width="960" height="540"></canvas></div>
+<div class="controls">
+  <button id="play" class="primary">▶ Play</button>
+  <button id="mute">🔊 Sound on</button>
+  <button id="record">⏺ Record video</button>
+  <input id="name" type="text" maxlength="12" placeholder="Hero name" value="HERO">
+  <label class="btn">🖼 Change face<input id="face" type="file" accept="image/*"></label>
+</div>
+<div class="hint">A 25-second cartoon fight. "Record video" replays it and downloads a .webm file.</div>
+
+<script>
+(() => {
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const W = 960, H = 540, G = 452;          // G = ground line
+const HIP = 84;                             // hip height above ground (thigh + shin)
+const END = 26;
+
+// ---------- hero face (cropped from the photo) ----------
+const face = new Image();
+let faceCrop = { sx: 178, sy: 28, sw: 168, sh: 215 };
+face.src = 'hero.jpg';
+document.getElementById('face').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  face.onload = () => {
+    // centre square-ish crop for custom uploads
+    const s = Math.min(face.width, face.height);
+    faceCrop = { sx: (face.width - s * 0.8) / 2, sy: (face.height - s) / 2, sw: s * 0.8, sh: s };
+    if (!running) drawFrame(Math.min(t, END));
+  };
+  face.src = url;
+});
+face.onload = () => { if (!running) drawFrame(0.5); };
+
+const nameInput = document.getElementById('name');
+const heroName = () => (nameInput.value.trim() || 'HERO').toUpperCase();
+nameInput.addEventListener('input', () => { if (!running) drawFrame(Math.min(t, END)); });
+
+// ---------- helpers ----------
+const lerp = (a, b, p) => a + (b - a) * p;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ease = p => p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+const rad = d => d * Math.PI / 180;
+const lerpA = (a, b, p) => [lerp(a[0], b[0], p), lerp(a[1], b[1], p)];
+
+// ---------- script ----------
+// keyframes: [time, x, y(offset above ground), pose]
+const heroKF = [
+  [0, -120, 0, 'walk'], [3, -120, 0, 'walk'], [5, 330, 0, 'idle'],
+  [6.6, 330, 0, 'walk'], [7.0, 540, 0, 'punch'], [7.3, 545, 0, 'punch'], [7.6, 550, 0, 'punch'],
+  [7.9, 550, 0, 'kick'], [8.4, 540, 0, 'idle'],
+  [10.3, 540, 0, 'hit'], [10.8, 440, 0, 'idle'],
+  [11.2, 440, 0, 'crouch'], [11.45, 440, 0, 'jumpkick'], [11.85, 560, 120, 'jumpkick'], [12.2, 580, 0, 'idle'],
+  [13.2, 580, 0, 'block'], [13.9, 580, 0, 'hit'], [14.4, 450, 0, 'idle'],
+  [15.0, 450, 0, 'charge'], [16.0, 450, 0, 'walk'], [16.15, 690, 0, 'uppercut'], [16.9, 690, 0, 'idle'],
+  [17.6, 620, 0, 'victory'], [20.2, 620, 0, 'idle'], [21.0, 700, 0, 'handshake'], [25, 700, 0, 'handshake']
+];
+const villKF = [
+  [0, 1080, 0, 'walk'], [3, 1080, 0, 'walk'], [5, 655, 0, 'idle'],
+  [7.05, 655, 0, 'hit'], [7.35, 665, 0, 'hit'], [7.65, 680, 0, 'hit'], [7.95, 695, 0, 'hit'], [8.4, 725, 0, 'idle'],
+  [10.0, 725, 0, 'walk'], [10.3, 650, 0, 'kick'], [10.8, 665, 0, 'idle'],
+  [11.9, 665, 0, 'hit'], [12.4, 785, 0, 'idle'],
+  [12.6, 785, 0, 'charge'], [13.6, 785, 0, 'blast'], [14.3, 785, 0, 'idle'],
+  [16.15, 785, 0, 'fly'], [16.65, 800, 200, 'fly'], [17.2, 760, 0, 'ko'],
+  [20.2, 760, 0, 'idle'], [20.4, 760, 0, 'walk'], [21.0, 815, 0, 'handshake'], [25, 815, 0, 'handshake']
+];
+const hits = [   // [time, target, damage, big?]
+  [7.08, 'v', 8], [7.38, 'v', 8], [7.68, 'v', 8], [8.0, 'v', 10],
+  [10.33, 'h', 14], [11.9, 'v', 14], [13.9, 'h', 18], [16.15, 'v', 52, true]
+];
+const texts = [  // [start, end, text, color]
+  [5.0, 5.9, 'ROUND 1', '#ffffff'], [5.9, 6.7, 'FIGHT!', '#ffb400'],
+  [8.1, 9.2, '4 HIT COMBO!', '#ff5a5a'], [17.3, 19.6, 'K.O.!', '#ff3030']
+];
+const speech = [ // [start, end, who, text]
+  [8.6, 9.9, 'v', 'I am waiting...'],
+  [12.6, 13.5, 'v', 'Thalapathy power!'],
+  [14.5, 15.8, 'h', 'My turn!'],
+  [18.0, 19.8, 'h', 'Yes! I did it!'],
+  [21.2, 22.6, 'v', 'Semma fight, nanba!'],
+  [22.7, 24.0, 'h', 'Nanba! 🤝']
+];
+const blast = { t0: 13.6, t1: 13.9 };
+const slowmo = [16.1, 16.7];
+
+function sample(kf, t) {
+  let i = 0;
+  while (i < kf.length - 1 && kf[i + 1][0] <= t) i++;
+  const a = kf[i], b = kf[Math.min(i + 1, kf.length - 1)];
+  const p = b[0] > a[0] ? ease(clamp((t - a[0]) / (b[0] - a[0]), 0, 1)) : 0;
+  return { x: lerp(a[1], b[1], p), lift: lerp(a[2], b[2], p), pose: a[3], lt: t - a[0] };
+}
+function hpAt(who, t) {
+  let hp = 100;
+  for (const h of hits) if (h[1] === who && t >= h[0]) hp -= h[2];
+  return Math.max(0, hp);
+}
+
+// ---------- poses ----------
+// angles in degrees: 0 = straight down, +90 = pointing forward (toward facing)
+const GUARD_F = [40, 155], GUARD_B = [25, 150];
+function pose(name, lt) {
+  const P = { lean: 0, aF: GUARD_F, aB: GUARD_B, lF: [18, 8], lB: [-18, -8], rot: 0, y: 0 };
+  const strike = (d, hold) => lt < d ? lt / d : lt < d + hold ? 1 : Math.max(0, 1 - (lt - d - hold) / 0.1);
+  switch (name) {
+    case 'idle': P.y = Math.sin(lt * 6) * 3; break;
+    case 'walk': {
+      const s = Math.sin(lt * 14);
+      P.lF = [s * 30, s * 30 - 15]; P.lB = [-s * 30, -s * 30 - 15]; P.y = -Math.abs(s) * 4; break;
+    }
+    case 'punch': {
+      const p = strike(0.08, 0.12);
+      P.aF = lerpA(GUARD_F, [88, 90], p); P.lean = 12 * p; P.lF = [26, 10]; P.lB = [-26, -10]; break;
+    }
+    case 'kick': {
+      const p = strike(0.1, 0.18);
+      P.lF = lerpA([18, 8], [95, 92], p); P.lB = [-10, -5]; P.lean = -18 * p; break;
+    }
+    case 'hit':
+      P.lean = -22 + Math.sin(lt * 50) * 4; P.aF = [-30, 20]; P.aB = [-50, 10];
+      P.lF = [12, 28]; P.lB = [-25, -5]; break;
+    case 'block': P.aF = [72, 175]; P.aB = [62, 170]; P.lean = -5; P.lF = [26, 12]; P.lB = [-26, -12]; break;
+    case 'crouch': P.lF = [55, -10]; P.lB = [-5, -80]; P.y = 22; P.lean = 10; break;
+    case 'jumpkick': P.lF = [90, 88]; P.lB = [40, -70]; P.aF = [60, 100]; P.aB = [-40, -10]; P.lean = -20; break;
+    case 'charge': {
+      const sh = Math.sin(lt * 60) * 1.5;
+      P.aF = [50, 130]; P.aB = [45, 125]; P.lF = [30, 15]; P.lB = [-30, -15]; P.y = 6 + sh; break;
+    }
+    case 'blast': P.aF = [90, 90]; P.aB = [84, 88]; P.lean = 8; P.lF = [30, 15]; P.lB = [-30, -15]; break;
+    case 'uppercut': {
+      const p = Math.min(lt / 0.12, 1);
+      P.aF = lerpA([30, 150], [165, 178], p); P.lean = 15 * p; P.lF = [22, 5]; P.lB = [-32, -10]; P.y = -10 * p; break;
+    }
+    case 'fly':
+      P.aF = [-60, -40]; P.aB = [-85, -60]; P.lF = [-30, -10]; P.lB = [-50, 0]; P.rot = -lt * 520; break;
+    case 'ko':
+      P.aF = [150, 150]; P.aB = [120, 110]; P.lF = [5, 0]; P.lB = [-10, 0]; P.rot = -90; P.y = 62; break;
+    case 'victory':
+      P.aF = [140, 165]; P.aB = [-140, -165]; P.y = -Math.abs(Math.sin(lt * 7)) * 16; break;
+    case 'handshake': P.aF = [72, 84]; P.aB = [15, 10]; P.y = Math.sin(lt * 3) * 1.5; break;
+  }
+  return P;
+}
+
+// ---------- drawing ----------
+const HERO = { shirt: '#c62f3c', shirtDark: '#8f1f2b', pants: '#2d3e64', shoe: '#f2f2f2', skin: '#a0664a' };
+const VILL = { shirt: '#1c1c22', shirtDark: '#0c0c10', pants: '#6b5a45', shoe: '#5a3822', skin: '#94603f' };
+
+function limb(x, y, a1, a2, l1, l2, f, color, w) {
+  const x1 = x + Math.sin(rad(a1)) * l1 * f, y1 = y + Math.cos(rad(a1)) * l1;
+  const x2 = x1 + Math.sin(rad(a2)) * l2 * f, y2 = y1 + Math.cos(rad(a2)) * l2;
+  ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  return [x2, y2];
+}
+function arm(a, f, c) {
+  const [hx, hy] = limb(0, -64, a[0], a[1], 34, 32, f, c.shirt, 15);
+  ctx.fillStyle = c.skin; ctx.beginPath(); ctx.arc(hx, hy, 10, 0, 7); ctx.fill();
+}
+function leg(l, f, c) {
+  const [fx, fy] = limb(0, 0, l[0], l[1], 42, 42, f, c.pants, 18);
+  ctx.fillStyle = c.shoe; ctx.beginPath(); ctx.ellipse(fx + 7 * f, fy + 2, 13, 7, 0, 0, 7); ctx.fill();
+}
+
+function heroHead(r = 1) {
+  ctx.save(); ctx.scale(r, r);
+  ctx.beginPath(); ctx.ellipse(0, 0, 36, 44, 0, 0, 7);
+  ctx.fillStyle = '#222'; ctx.fill();
+  ctx.save(); ctx.clip();
+  if (face.complete && face.naturalWidth) {
+    const c = faceCrop;
+    ctx.filter = 'brightness(1.1) contrast(1.3) saturate(1.3)';
+    ctx.drawImage(face, c.sx, c.sy, c.sw, c.sh, -38, -46, 76, 92);
+  }
+  ctx.restore();
+  ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke();
+  ctx.restore();
+}
+function villainHead(r = 1, f = 1) {
+  ctx.save(); ctx.scale(r * f, r);
+  const s = VILL.skin;
+  // ears + face
+  ctx.fillStyle = s;
+  ctx.beginPath(); ctx.ellipse(-31, 4, 7, 10, 0, 0, 7); ctx.ellipse(31, 4, 7, 10, 0, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0, 2, 31, 40, 0, 0, 7); ctx.fill();
+  // hair (swept, with volume)
+  ctx.fillStyle = '#111';
+  ctx.beginPath();
+  ctx.moveTo(-33, 0); ctx.quadraticCurveTo(-40, -48, -4, -50);
+  ctx.quadraticCurveTo(38, -54, 34, -6); ctx.quadraticCurveTo(28, -26, 8, -30);
+  ctx.quadraticCurveTo(-16, -22, -26, -20); ctx.quadraticCurveTo(-30, -10, -33, 0); ctx.fill();
+  // beard
+  ctx.fillStyle = '#1b1411';
+  ctx.beginPath();
+  ctx.moveTo(-30, 6); ctx.quadraticCurveTo(-28, 44, 0, 45); ctx.quadraticCurveTo(28, 44, 30, 6);
+  ctx.quadraticCurveTo(26, 24, 16, 26); ctx.quadraticCurveTo(0, 20, -16, 26); ctx.quadraticCurveTo(-26, 24, -30, 6);
+  ctx.fill();
+  // mustache + smirk
+  ctx.beginPath(); ctx.moveTo(-14, 20); ctx.quadraticCurveTo(0, 12, 14, 20); ctx.quadraticCurveTo(0, 17, -14, 20); ctx.fill();
+  ctx.strokeStyle = '#e8d7c8'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-6, 27); ctx.quadraticCurveTo(4, 31, 10, 25); ctx.stroke();
+  // sunglasses
+  ctx.fillStyle = '#050505';
+  ctx.beginPath(); ctx.roundRect(-27, -8, 23, 14, 5); ctx.roundRect(4, -8, 23, 14, 5); ctx.fill();
+  ctx.fillRect(-5, -6, 10, 3);
+  ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(-23, -6, 7, 3); ctx.fillRect(8, -6, 7, 3);
+  ctx.restore();
+}
+
+function drawFighter(st, who, t) {
+  const f = who === 'h' ? 1 : -1;
+  const c = who === 'h' ? HERO : VILL;
+  const P = pose(st.pose, st.lt);
+  const hipY = G - HIP - st.lift + P.y;
+
+  // shadow
+  ctx.fillStyle = 'rgba(0,0,0,.35)';
+  ctx.beginPath(); ctx.ellipse(st.x, G + 4, Math.max(18, 44 - st.lift * .15), 8, 0, 0, 7); ctx.fill();
+
+  // aura while charging
+  if (st.pose === 'charge') {
+    const pulse = 0.6 + 0.4 * Math.sin(t * 30);
+    const g = ctx.createRadialGradient(st.x, hipY - 60, 10, st.x, hipY - 60, 130);
+    const col = who === 'h' ? '255,190,40' : '80,160,255';
+    g.addColorStop(0, `rgba(${col},${0.55 * pulse})`); g.addColorStop(1, `rgba(${col},0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(st.x, hipY - 50, 110, 150, 0, 0, 7); ctx.fill();
+  }
+
+  ctx.save();
+  ctx.translate(st.x, hipY);
+  ctx.rotate(rad(P.rot) * f);
+
+  const upper = drawFront => {
+    ctx.save(); ctx.rotate(rad(P.lean) * f);
+    if (!drawFront) { ctx.globalAlpha = 1; arm(P.aB, f, { ...c, shirt: c.shirtDark }); ctx.restore(); return; }
+    // torso
+    ctx.fillStyle = c.shirt;
+    ctx.beginPath(); ctx.roundRect(-22, -74, 44, 80, 14); ctx.fill();
+    if (who === 'h') {          // silver chain like in the photo
+      ctx.strokeStyle = '#d9d9d9'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(-10, -72); ctx.quadraticCurveTo(0, -40, 10, -72); ctx.stroke();
+    } else {                    // open collar + belt
+      ctx.fillStyle = '#e9e4da';
+      ctx.beginPath(); ctx.moveTo(-8, -74); ctx.lineTo(0, -56); ctx.lineTo(8, -74); ctx.fill();
+      ctx.fillStyle = '#3b2a1c'; ctx.fillRect(-22, -4, 44, 7);
+    }
+    // neck + head
+    ctx.fillStyle = c.skin; ctx.fillRect(-7, -84, 14, 14);
+    ctx.save(); ctx.translate(0, -118);
+    who === 'h' ? heroHead() : villainHead(1, f);
+    ctx.restore();
+    arm(P.aF, f, c);
+    ctx.restore();
+  };
+
+  upper(false);
+  leg(P.lB, f, { ...c, pants: shade(c.pants) });
+  leg(P.lF, f, c);
+  upper(true);
+  ctx.restore();
+
+  return { x: st.x, headY: hipY - 118 };
+}
+function shade(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) * .72 | 0, g = ((n >> 8) & 255) * .72 | 0, b = (n & 255) * .72 | 0;
+  return `rgb(${r},${g},${b})`;
+}
+
+// background (static layers precomputed)
+const skyline = [];
+{ let seed = 7; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  for (let x = -10; x < W + 40;) { const w = 40 + rnd() * 70; skyline.push([x, w, 90 + rnd() * 170, rnd()]); x += w + 4; } }
+function drawBackground(t) {
+  const sky = ctx.createLinearGradient(0, 0, 0, G);
+  sky.addColorStop(0, '#2a1b4a'); sky.addColorStop(.55, '#b3405a'); sky.addColorStop(1, '#f39a4b');
+  ctx.fillStyle = sky; ctx.fillRect(-40, -40, W + 80, G + 40);
+  // sun
+  ctx.fillStyle = 'rgba(255,214,120,.9)'; ctx.beginPath(); ctx.arc(480, 300, 70, 0, 7); ctx.fill();
+  // skyline
+  for (const [x, w, h, r] of skyline) {
+    ctx.fillStyle = '#23182f'; ctx.fillRect(x, G - h, w, h);
+    ctx.fillStyle = 'rgba(255,210,120,.35)';
+    for (let wy = G - h + 12; wy < G - 20; wy += 18)
+      for (let wx = x + 8; wx < x + w - 8; wx += 14)
+        if (Math.sin(wx * 12.9 + wy * 78.2 + r * 40) > .3) ctx.fillRect(wx, wy, 5, 7);
+  }
+  // ground
+  const gr = ctx.createLinearGradient(0, G, 0, H);
+  gr.addColorStop(0, '#4a3a33'); gr.addColorStop(1, '#1f1714');
+  ctx.fillStyle = gr; ctx.fillRect(-40, G, W + 80, H - G + 40);
+  ctx.strokeStyle = 'rgba(255,255,255,.08)'; ctx.lineWidth = 2;
+  for (let i = -10; i < 20; i++) { ctx.beginPath(); ctx.moveTo(480 + i * 40, G); ctx.lineTo(480 + i * 110, H + 40); ctx.stroke(); }
+}
+
+function drawHUD(t) {
+  const bar = (x, dir, name, hp, col) => {
+    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(x, 20, 380, 26);
+    const w = 372 * hp / 100;
+    ctx.fillStyle = hp > 30 ? col : '#ff3b3b';
+    dir > 0 ? ctx.fillRect(x + 4, 24, w, 18) : ctx.fillRect(x + 376 - w, 24, w, 18);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 16px system-ui, sans-serif';
+    ctx.textAlign = dir > 0 ? 'left' : 'right';
+    ctx.fillText(name, dir > 0 ? x : x + 380, 66);
+  };
+  bar(20, 1, heroName(), smoothHP('h', t), '#ffcf3a');
+  bar(560, -1, 'THALAPATHY', smoothHP('v', t), '#4fb3ff');
+  ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.font = 'bold 22px system-ui, sans-serif';
+  ctx.fillText('VS', 480, 42);
+}
+function smoothHP(who, t) {
+  // drain over 0.3s after each hit
+  const target = hpAt(who, t);
+  const last = hits.filter(h => h[1] === who && h[0] <= t).pop();
+  if (!last || t - last[0] > 0.3) return target;
+  return Math.min(100, target + last[2] * (1 - (t - last[0]) / 0.3));
+}
+
+function bubble(x, y, text, dir) {
+  ctx.font = 'bold 18px system-ui, sans-serif';
+  const w = ctx.measureText(text).width + 28, h = 38;
+  let bx = clamp(x - w / 2 + dir * 30, 10, W - w - 10), by = y - 110;
+  ctx.fillStyle = '#fff'; ctx.strokeStyle = '#111'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.roundRect(bx, by, w, h, 12); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - 8, by + h - 1); ctx.lineTo(x, by + h + 16); ctx.lineTo(x + 10, by + h - 1);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.fillRect(x - 6, by + h - 4, 15, 5);
+  ctx.fillStyle = '#111'; ctx.textAlign = 'center'; ctx.fillText(text, bx + w / 2, by + 25);
+}
+
+function burst(x, y, age, big) {
+  const s = (big ? 1.8 : 1) * (0.6 + age * 3), a = 1 - age / 0.35;
+  if (a <= 0) return;
+  ctx.save(); ctx.translate(x, y); ctx.globalAlpha = a; ctx.rotate(age * 4);
+  ctx.fillStyle = '#fff36b'; ctx.strokeStyle = '#ff6a00'; ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let i = 0; i < 16; i++) {
+    const r = (i % 2 ? 14 : 34) * s, an = i * Math.PI / 8;
+    ctx.lineTo(Math.cos(an) * r, Math.sin(an) * r);
+  }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.rotate(-age * 4); ctx.fillStyle = '#c21d1d'; ctx.font = `900 ${big ? 34 : 22}px system-ui, sans-serif`;
+  ctx.textAlign = 'center'; ctx.fillText(big ? 'KA-POW!' : ['POW!', 'BAM!', 'WHAM!'][Math.floor(x) % 3], 0, 8);
+  ctx.restore();
+}
+
+function bigText(text, color, age, dur) {
+  const p = clamp(age / 0.2, 0, 1), out = clamp((dur - age) / 0.2, 0, 1);
+  ctx.save(); ctx.translate(480, 230); ctx.scale(lerp(2.4, 1, ease(p)), lerp(2.4, 1, ease(p)));
+  ctx.globalAlpha = Math.min(p, out);
+  ctx.font = '900 80px Impact, system-ui, sans-serif'; ctx.textAlign = 'center';
+  ctx.lineWidth = 10; ctx.strokeStyle = '#111'; ctx.strokeText(text, 0, 0);
+  ctx.fillStyle = color; ctx.fillText(text, 0, 0);
+  ctx.restore();
+}
+
+function titleCard(t) {
+  const a = t < 2.6 ? 1 : clamp(1 - (t - 2.6) / 0.4, 0, 1);
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a;
+  ctx.fillStyle = 'rgba(8,8,14,.92)'; ctx.fillRect(0, 0, W, H);
+  const slide = ease(clamp(t / 0.8, 0, 1));
+  ctx.save(); ctx.translate(lerp(-150, 250, slide), 250); heroHead(2.1); ctx.restore();
+  ctx.save(); ctx.translate(lerp(1110, 710, slide), 250); villainHead(2.3, -1); ctx.restore();
+  ctx.textAlign = 'center';
+  ctx.font = '900 96px Impact, system-ui, sans-serif';
+  ctx.lineWidth = 10; ctx.strokeStyle = '#000'; ctx.strokeText('VS', 480, 280);
+  ctx.fillStyle = '#ffb400'; ctx.fillText('VS', 480, 280);
+  ctx.font = 'bold 30px system-ui, sans-serif'; ctx.fillStyle = '#fff';
+  ctx.fillText(heroName(), 250, 400); ctx.fillText('THALAPATHY', 710, 400);
+  ctx.font = '600 18px system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.7)';
+  ctx.fillText('THE ULTIMATE SHOWDOWN', 480, 470);
+  ctx.restore();
+}
+
+function endCard(t) {
+  const a = clamp((t - 24) / 0.8, 0, 1);
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a;
+  ctx.fillStyle = 'rgba(8,8,14,.8)'; ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+  ctx.font = '900 84px Impact, system-ui, sans-serif'; ctx.fillStyle = '#ffb400';
+  ctx.fillText('THE END', 480, 250);
+  ctx.font = '600 24px system-ui, sans-serif'; ctx.fillStyle = '#fff';
+  ctx.fillText(`${heroName()} wins — and makes a new nanba!`, 480, 300);
+  ctx.restore();
+}
+
+// ---------- frame ----------
+function drawFrame(t) {
+  const hs = sample(heroKF, t), vs = sample(villKF, t);
+  // camera shake after hits
+  let shake = 0;
+  for (const h of hits) { const age = t - h[0]; if (age >= 0 && age < 0.25) shake = Math.max(shake, (h[3] ? 14 : 6) * (1 - age / 0.25)); }
+  ctx.save();
+  ctx.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
+  drawBackground(t);
+
+  const V = drawFighter(vs, 'v', t);
+  const Hh = drawFighter(hs, 'h', t);
+
+  // energy blast
+  if (t >= blast.t0 - 0.05 && t <= blast.t1 + 0.1) {
+    const p = clamp((t - blast.t0) / (blast.t1 - blast.t0), 0, 1);
+    const bx = lerp(vs.x - 90, hs.x + 45, p), by = G - 150;
+    for (let i = 5; i >= 0; i--) {
+      ctx.fillStyle = `rgba(90,170,255,${0.15 + i * 0.03})`;
+      ctx.beginPath(); ctx.arc(bx + i * 18, by, 26 - i * 3, 0, 7); ctx.fill();
+    }
+    ctx.fillStyle = '#e8f4ff'; ctx.beginPath(); ctx.arc(bx, by, 16, 0, 7); ctx.fill();
+  }
+
+  // impacts
+  for (const [ht, who, , big] of hits) {
+    const age = t - ht;
+    if (age >= 0 && age < 0.35) {
+      const tgt = who === 'v' ? vs : hs, dir = who === 'v' ? -1 : 1;
+      burst(tgt.x + dir * 28, G - HIP - 70 - (big ? 40 : 0), age, big);
+    }
+  }
+
+  // speech
+  for (const [a, b, who, text] of speech)
+    if (t >= a && t <= b) { const p = who === 'h' ? Hh : V; bubble(p.x, p.headY, text, who === 'h' ? 1 : -1); }
+
+  ctx.restore();
+
+  if (t > 3) drawHUD(t);
+  for (const [a, b, text, col] of texts) if (t >= a && t <= b) bigText(text, col, t - a, b - a);
+  // flash on the finishing blow
+  const fa = t - 16.15; if (fa >= 0 && fa < 0.25) { ctx.fillStyle = `rgba(255,255,255,${0.8 * (1 - fa / 0.25)})`; ctx.fillRect(0, 0, W, H); }
+  titleCard(t);
+  endCard(t);
+}
+
+// ---------- sound (synthesised, no files) ----------
+let actx = null, master = null, muted = false, recDest = null;
+function audio() {
+  if (!actx) {
+    actx = new (window.AudioContext || window.webkitAudioContext)();
+    master = actx.createGain(); master.gain.value = muted ? 0 : 0.6; master.connect(actx.destination);
+    recDest = actx.createMediaStreamDestination(); master.connect(recDest);
+  }
+  if (actx.state === 'suspended') actx.resume();
+  return actx;
+}
+function hitSound(big) {
+  if (!actx) return;
+  const now = actx.currentTime, len = big ? 0.5 : 0.18;
+  const buf = actx.createBuffer(1, actx.sampleRate * len, actx.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+  const n = actx.createBufferSource(); n.buffer = buf;
+  const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = big ? 1200 : 1800;
+  n.connect(lp).connect(master); n.start(now);
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.frequency.setValueAtTime(big ? 140 : 180, now); o.frequency.exponentialRampToValueAtTime(40, now + len);
+  g.gain.setValueAtTime(0.9, now); g.gain.exponentialRampToValueAtTime(0.001, now + len);
+  o.connect(g).connect(master); o.start(now); o.stop(now + len);
+}
+function sweep(f0, f1, dur, type = 'sawtooth', vol = 0.25) {
+  if (!actx) return;
+  const now = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.setValueAtTime(f0, now); o.frequency.exponentialRampToValueAtTime(f1, now + dur);
+  g.gain.setValueAtTime(vol, now); g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+  o.connect(g).connect(master); o.start(now); o.stop(now + dur);
+}
+const cues = [
+  ...hits.map(h => [h[0], () => hitSound(h[3])]),
+  [5.9, () => sweep(300, 900, 0.4, 'square', 0.15)],
+  [12.6, () => sweep(120, 600, 1.0, 'sawtooth', 0.12)],
+  [13.6, () => sweep(900, 200, 0.35, 'sawtooth', 0.2)],
+  [15.0, () => sweep(150, 900, 1.0, 'triangle', 0.25)],
+  [17.3, () => sweep(500, 80, 0.9, 'square', 0.15)],
+  [21.2, () => { sweep(523, 523, 0.25, 'triangle', 0.2); setTimeout(() => sweep(659, 659, 0.25, 'triangle', 0.2), 180); setTimeout(() => sweep(784, 784, 0.5, 'triangle', 0.2), 360); }]
+];
+
+// ---------- playback ----------
+let t = 0, running = false, last = 0, recorder = null;
+function loop(now) {
+  if (!running) return;
+  const dt = Math.min((now - last) / 1000, 0.05); last = now;
+  const scale = t >= slowmo[0] && t < slowmo[1] ? 0.35 : 1;
+  const prev = t; t += dt * scale;
+  for (const [ct, fn] of cues) if (prev < ct && t >= ct) fn();
+  drawFrame(Math.min(t, END));
+  if (t >= END) { stop(); return; }
+  requestAnimationFrame(loop);
+}
+function start() {
+  audio();
+  t = 0; running = true; last = performance.now();
+  playBtn.textContent = '⏸ Playing…'; playBtn.disabled = true;
+  requestAnimationFrame(loop);
+}
+function stop() {
+  running = false;
+  playBtn.textContent = '↻ Replay'; playBtn.disabled = false;
+  if (recorder && recorder.state === 'recording') recorder.stop();
+}
+
+const playBtn = document.getElementById('play');
+playBtn.onclick = start;
+const muteBtn = document.getElementById('mute');
+muteBtn.onclick = () => {
+  muted = !muted; muteBtn.textContent = muted ? '🔇 Sound off' : '🔊 Sound on';
+  if (master) master.gain.value = muted ? 0 : 0.6;
+};
+document.getElementById('record').onclick = () => {
+  if (running) return;
+  if (!window.MediaRecorder || !cv.captureStream) { alert('Video recording is not supported in this browser.'); return; }
+  audio();
+  const stream = cv.captureStream(60);
+  recDest.stream.getAudioTracks().forEach(tr => stream.addTrack(tr));
+  const type = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+    .find(m => MediaRecorder.isTypeSupported(m)) || '';
+  const chunks = [];
+  recorder = new MediaRecorder(stream, type ? { mimeType: type } : {});
+  recorder.ondataavailable = e => e.data.size && chunks.push(e.data);
+  recorder.onstop = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }));
+    a.download = 'hero-vs-thalapathy.webm'; a.click();
+  };
+  recorder.start();
+  start();
+};
+
+drawFrame(0.5);
+})();
+</script>
+</body>
+</html>
